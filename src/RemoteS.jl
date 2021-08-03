@@ -1,5 +1,7 @@
 module RemoteS
 
+using GMT, Printf
+
 export
 	bright_T, grid_at_sensor, ndvi, truecolor, radiance_TOA, reflectance_TOA, reflectance_surf
 

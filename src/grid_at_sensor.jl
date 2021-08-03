@@ -36,7 +36,12 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 
 	d = KW(kw)
 	(inc >= 1) && error("Silly value $(inc) for the resolution of L2 MODIS grid")
+	!isfile(fname) && error("This file $(fname) does not exist")
 	info = gdalinfo(fname)
+	if (info === nothing)		# Try again after calling resetGMT because still something screws time-to-time
+		GMT.resetGMT()
+		info = gdalinfo(fname)
+	end
 	(haskey(d, :gdalinfo)) && (return println(info))
 	((ind = findfirst("Subdatasets:", info)) === nothing) && error("This file " * fame * " is not a MODS L2 file")
 	is_MODIS = (findfirst("MODISA Level-2", info) !== nothing) ? true : false
@@ -66,14 +71,14 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 	band = ((val = find_in_dict(d, [:band])[1]) !== nothing) ? Int(val) : 1
 	lon, lat, z_vals, inc, proj4 = get_xyz_qual(sds_lon, sds_lat, sds_z, quality, sds_qual, inc, band, V)
 
-	if ((opt_R = parse_R(d, "")[1]) == "")		# If != "" believe it makes sense as a -R option
+	if ((opt_R = GMT.parse_R(d, "")[1]) == "")		# If != "" believe it makes sense as a -R option
 		inc_txt = split("$(inc)", '.')[2]		# To count the number of decimal digits to use in rounding
 		ndigits = length(inc_txt)
 		min_lon, max_lon = extrema(lon)
 		min_lat, max_lat = extrema(lat)
 		west, east   = round(min_lon-inc; digits=ndigits), round(max_lon+inc; digits=ndigits)
 		south, north = round(min_lat-inc; digits=ndigits), round(max_lat+inc; digits=ndigits)
-		opt_R = sprintf("%.10g/%.10g/%.10g/%.10g", west, east, south, north)
+		opt_R = GMT.sprintf("%.10g/%.10g/%.10g/%.10g", west, east, south, north)
 	else
 		opt_R = opt_R[4:end]		# Because it already came with " -R....." from parse_R()
 	end

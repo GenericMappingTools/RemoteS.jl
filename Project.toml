@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [deps]
 GMT = "5752ebe1-31b9-557e-87aa-f909b540aa54"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
