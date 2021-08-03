@@ -103,19 +103,6 @@ function helper_find_sds(sds::String, info::String, ind_EOLs::Vector{UnitRange{I
 end
 
 # ---------------------------------------------------------------------------------------------------
-function R_inc_to_gd(inc::Vector{Float64}, opt_R::String="", BB::Vector{Float64}=Vector{Float64}())
-	# Convert an opt_R string or BB vector + inc vector in the equivalent set of options for GDAL
-	if (opt_R != "")
-		ind = findfirst("R", opt_R)
-		BB = (ind !== nothing) ? tryparse.(Float64, split(opt_R[ind[1]+1:end], '/')) : tryparse.(Float64, split(opt_R, '/'))
-	end
-	nx = round(Int32, (BB[2] - BB[1]) / inc[1])
-	inc_y = (length(inc) == 1) ? inc[1] : inc[2]
-	ny = round(Int32, (BB[4] - BB[3]) / inc_y)
-	return ["-txe", "$(BB[1])", "$(BB[2])", "-tye", "$(BB[3])", "$(BB[4])", "-outsize", "$(nx)", "$(ny)"]
-end
-
-# ---------------------------------------------------------------------------------------------------
 function get_xyz_qual(sds_lon::String, sds_lat::String, sds_z::String, quality::Int, sds_qual::String="",
 	                  inc::Float64=0., band::Int=1, V::Bool=false)
 	# Get a Mx3 matrix with data to feed interpolator. Filter with quality if that's the case
