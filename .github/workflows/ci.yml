@@ -1,0 +1,98 @@
+name: CI
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    tags: '*'
+defaults:
+  run:
+    # default to use bash shell
+    shell: bash
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    runs-on: ${{ matrix.os }}
+
+    env:
+      JULIA_NUM_THREADS: 2
+
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.6' # Replace this with the minimum Julia version that your package supports. E.g. if your package requires Julia 1.5 or higher, change this to '1.5'.
+          #- '1' # Leave this line unchanged. '1' will automatically expand to the latest stable 1.x release of Julia.
+          #- 'nightly'
+        os:
+          - ubuntu-latest
+          #- ubuntu-18.04
+          #- macos-latest
+        arch:
+          - x64
+        include:
+          # Linux
+          - name: Linux - Compile only
+            #os: ubuntu-18.04
+            os: ubuntu-latest
+            run_in_pr : true
+
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.6.0
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout
+        uses: actions/checkout@v2
+        if: matrix.run_in_pr == true || github.event_name != 'pull_request'
+
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v1
+        with:
+          file: lcov.info
+  
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    #runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+      - run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.add("Documenter")
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()'
+      #- run: |
+          #julia --project=docs -e '
+            #using Documenter: doctest
+            #using GMT
+            #doctest(GMT)' # change MYPACKAGE to the name of your package
+      - run: julia --project=docs docs/make.jl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
