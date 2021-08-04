@@ -19,7 +19,7 @@ find_in_dict = GMT.find_in_dict
 """
     Irgb = truecolor(bndR, bndG, bndB)
 
-Take three Landsat8 UINT16 GMTimages or the file names of those bands and compose
+Take three Landsat8/Sentinel2 UINT16 GMTimages or the file names of those bands and compose
 an RGB true color image applying automatic histogram stretching.
 
 Return an UInt8 RGB GMTimage
@@ -223,4 +223,10 @@ function ndvi(Ired, Inir; threshold=0.4, mask::Bool=false)
 		end
 		G = mat2grid(img, Ired)
 	end
+end
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+"""
+function spectral_indices(bndR::String, bndNIR::String; radiance::Bool=false, threshold=0.4, mask::Bool=false)
 end
