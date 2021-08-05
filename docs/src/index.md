@@ -3,13 +3,13 @@
 ## Index
 
 ```@index
-Modules = RemoteS
+Modules = [RemoteS]
 Order   = [:function, :type, :module]
 ```
 
 ## Functions
 
 ```@autodocs
-Modules = RemoteS
+Modules = [RemoteS]
 Order   = [:function, :type, :module]
 ```
