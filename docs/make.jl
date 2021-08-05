@@ -13,6 +13,7 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/GenericMappingTools/RemoteS.jl.git",
+    #repo = "github.com/GenericMappingTools/RemoteS.jl.git",
+    repo = "https://www.generic-mapping-tools.org/RemoteS.jl",
     push_preview = true
 )
