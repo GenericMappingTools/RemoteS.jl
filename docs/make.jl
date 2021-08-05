@@ -1,11 +1,12 @@
 using Documenter, RemoteS
 
 makedocs(
-    modules = RemoteS,
+    modules = [RemoteS],
     format = Documenter.HTML(; prettyurls = get(ENV, "CI", nothing) == "true"),
     authors = "Joaquim Luis",
     sitename = "RemoteS.jl",
-    pages = Any["index.md"]
+    pages = Any["Index"                    => "index.md"],
+
     # strict = true,
     # clean = true,
     # checkdocs = :exports,
