@@ -7,9 +7,9 @@
 ![Lifecycle](https://img.shields.io/badge/lifecycle-archived-red.svg)
 ![Lifecycle](https://img.shields.io/badge/lifecycle-dormant-blue.svg) -->
 [![codecov.io](http://codecov.io/github/joa-quim/RemoteS.jl/coverage.svg?branch=master)](http://codecov.io/github/joa-quim/RemoteS.jl?branch=master)
+[![Documentation](https://img.shields.io/badge/docs-master-blue.svg)](https://www.generic-mapping-tools.org/RemoteS.jl/dev/)
 <!--
 [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://joa-quim.github.io/RemoteS.jl/stable)
-[![Documentation](https://img.shields.io/badge/docs-master-blue.svg)](https://joa-quim.github.io/RemoteS.jl/dev)
 -->
 
 Skeleton package to perform operations in satellite data. It depends heavily, and so far only, on
