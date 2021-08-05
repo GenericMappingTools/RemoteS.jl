@@ -229,4 +229,8 @@ end
 """
 """
 function spectral_indices(bndR::String, bndNIR::String; radiance::Bool=false, threshold=0.4, mask::Bool=false)
+	#@assert size(Ired) == size(Inir)
+	if (mask)
+	else
+	end
 end
