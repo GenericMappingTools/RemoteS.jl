@@ -92,7 +92,7 @@ end
 # ----------------------------------------------------------------------------------------------------------
 function helper1_sats(fname::String)
 	pars = read_mtl(fname)
-	I::GMTimage{UInt16, 2} = gmtread(fname)
+	I::GMT.GMTimage{UInt16, 2} = gmtread(fname)
 	indNaN = fill(false, size(I))
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)	# 5x faster than: indNaN = (I.image .== 0)
 		(I.image[k] == 0) && (indNaN[k] = true)
@@ -404,7 +404,7 @@ SLAVI = nir / (red + swir2)
 slavi(red, nir, swir2; kw...) = spectral_indices(red, nir, swir2; index="SLAVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
-function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="", kwargs...)::Union{GMTgrid,GMTimage}
+function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="", kwargs...)
 	do_radTOA = any(keys(kwargs) .== :dn2radiance)
 	do_refTOA = any(keys(kwargs) .== :dn2reflectance)
 	do_refSrf = any(keys(kwargs) .== :reflectance_surf)
@@ -418,7 +418,7 @@ function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::St
 	spectral_indices(Bnd1, Bnd2, Bnd3; index=index, kwargs...)
 end
 
-function spectral_indices(bnd1::GMTimage, bnd2::GMTimage, bnd3=nothing; index::String="", kwargs...)::Union{GMTgrid,GMTimage}
+function spectral_indices(bnd1::GMT.GMTimage, bnd2::GMT.GMTimage, bnd3=nothing; index::String="", kwargs...)
 	(index == "") && error("Must select which index to compute")
 	@assert size(bnd1) == size(bnd2)
 	mask = any(keys(kwargs) .== :mask)
