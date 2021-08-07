@@ -92,7 +92,7 @@ end
 # ----------------------------------------------------------------------------------------------------------
 function helper1_sats(fname::String)
 	pars = read_mtl(fname)
-	I::GMTimage{UInt16, 2} = gmtread(fname)
+	I::GMT.GMTimage{UInt16, 2} = gmtread(fname)
 	indNaN = fill(false, size(I))
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)	# 5x faster than: indNaN = (I.image .== 0)
 		(I.image[k] == 0) && (indNaN[k] = true)
@@ -103,11 +103,11 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = bright_T(fname::String)
+    R = dn2temperature(fname::String)
 
 Returns a GMTgrid with the brigthness temperature of Landasat8 termal band (10 or 11)
 """
-function bright_T(fname::String)
+function dn2temperature(fname::String)
 	I, pars, indNaN, o = helper1_sats(fname)
 	(pars.band < 10) && error("Brightness temperature is only for bands 10 or 11. Not this: $(pars.band)")
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
@@ -119,11 +119,11 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = radiance_TOA(fname::String)
+    R = dn2radiance(fname::String)
 
 Returns a GMTgrid with the radiance at TopOfAtmosphere for the Landsat8 band file `fname`
 """
-function radiance_TOA(fname::String)
+function dn2radiance(fname::String)
 	I, pars, indNaN, o = helper1_sats(fname)
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
 		o[k] = I.image[k] * pars.rad_mul + pars.rad_add
@@ -134,11 +134,11 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = reflectance_TOA(fname::String)
+    R = dn2reflectance(fname::String)
 
 Returns a GMTgrid with the TopOfAtmosphere planetary reflectance for the Landsat8 band file `fname`
 """
-function reflectance_TOA(fname::String)
+function dn2reflectance(fname::String)
 	I, pars, indNaN, o = helper1_sats(fname)
 	(pars.band >= 10) && error("Computing Reflectance for Thermal bands is not defined.")
 	s_elev = sin(pars.sun_elev * pi/180)
@@ -190,18 +190,10 @@ function reflectance_surf(fname::String)
 	mat2grid(o, I)
 end
 
-# ----------------------------------------------------------------------------------------------------------
-"""
-    NDVI = ndvi(bndR, bndNIR; threshold=0.4, mask::Bool=false)
-
-Compute the NDVI vegetation index. Input can be either the bands file names, or GMTimage objects
-with the band's data.
-
-Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` option is set to true.
-"""
+#=
 function ndvi(bndR::String, bndNIR::String; radiance::Bool=false, threshold=0.4, mask::Bool=false)
-	Ired = (radiance) ? radiance_TOA(bndR)   : gmtread(bndR)
-	Inir = (radiance) ? radiance_TOA(bndNIR) : gmtread(bndNIR)
+	Ired = (radiance) ? dn2radiance(bndR)   : gmtread(bndR)
+	Inir = (radiance) ? dn2radiance(bndNIR) : gmtread(bndNIR)
 	ndvi(Ired, Inir; mask=mask, threshold=threshold)
 end
 function ndvi(Ired, Inir; threshold=0.4, mask::Bool=false)
@@ -224,199 +216,389 @@ function ndvi(Ired, Inir; threshold=0.4, mask::Bool=false)
 		G = mat2grid(img, Ired)
 	end
 end
+=#
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    CLG = vi_clg(green, redEdge3; kw...)
+    CLG = clg(green, redEdge3; kw...)
 
 Green cholorphyl index. Wu et al 2012.
 
 CLG = (redEdge3)/(green)-1 
 """
-vi_clg(green, redEdge3; kw...) = spectral_indices(green, redEdge3; index="CLG", kw...)
+clg(green, redEdge3; kw...) = spectral_indices(green, redEdge3; index="CLG", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    CLRE = vi_clre(redEdge1, redEdge3; kw...)
+    CLRE = clre(redEdge1, redEdge3; kw...)
 
 RedEdge cholorphyl index. Clevers and Gitelson 2013.
 
 CLRE = (redEdge3)/(redEdge1)-1
 """
-vi_clre(redEdge1, redEdge3; kw...) = spectral_indices(redEdge1, redEdge3; index="CLRE", kw...)
+clre(redEdge1, redEdge3; kw...) = spectral_indices(redEdge1, redEdge3; index="CLRE", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    EVI = vi_evi(blue, red, nir; kw...)
+    EVI = evi(blue, red, nir; kw...)
 
 Enhanced vegetation index. Huete et al 1990
 
 EVI = G * ((nir - red) / (nir + C1 * red - C2 * blue + Levi));
 C1, C2, G, Levi = 6.0, 7.5, 2.5, 1.
 """
-vi_evi(blue, red, nir; kw...) = spectral_indices(blue, red, nir; index="EVI", kw...)
+evi(blue, red, nir; kw...) = spectral_indices(blue, red, nir; index="EVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    EVI2 = vi_evi(red, nir; kw...)
+    EVI2 = evi(red, nir; kw...)
 
 Two-band Enhanced vegetation index. Jiang et al 2008
 
 EVI2 = G * ((nir - red) / (nir + 2.4 * red ))
 """
-vi_evi2(red, nir; kw...) = spectral_indices(red, nir; index="EVI2", kw...)
+evi2(red, nir; kw...) = spectral_indices(red, nir; index="EVI2", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    GNDVI = vi_gndvi(green, nir; kw...)
+    GNDVI = gndvi(green, nir; kw...)
 
 green Normalized diff vegetation index: more sensitive to cholorphyll than ndvi. Gitelson, A., and M. Merzlyak
 
 GNDVI = (nir - green) / (nir + green)
 """
-vi_gndvi(green, nir; kw...) = spectral_indices(green, nir; index="GNDVI", kw...)
+gndvi(green, nir; kw...) = spectral_indices(green, nir; index="GNDVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    MNDWI = vi_mndwi(green, swir2; kw...)
+    MNDWI = mndwi(green, swir2; kw...)
 
 Modified Normalised Difference Water Index. Xu2006
 
 MNDWI = (green-swir2) / (green+swir2)
 """
-vi_mndwi(green, swir2; kw...) = spectral_indices(green, swir2; index="MNDWI", kw...)
+mndwi(green, swir2; kw...) = spectral_indices(swir2, green; index="MNDWI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    MTCI = vi_mtci(red, redEdge1, redEdge2; kw...)
+    MTCI = mtci(red, redEdge1, redEdge2; kw...)
 
 Meris Terrestrial Chlorophyll Index. Clevers and Gitelson 2013, Dash and Curran 2004
 
 MTCI = (redEdge2-redEdge1) / (redEdge1-red)
 """
-vi_mtci(red, redEdge1, redEdge2; kw...) = spectral_indices(red, redEdge1, redEdge2; index="MTCI", kw...)
+mtci(red, redEdge1, redEdge2; kw...) = spectral_indices(red, redEdge1, redEdge2; index="MTCI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
+    MCARI = mcari(green, red, redEdge1; kw...)
+
+Modified Chlorophyll Absorption ratio index. Daughtery et al. 2000
+
+MCARI = (redEdge1 - red - 0.2 * (redEdge1 + green)) * (redEdge1 / red)
 """
-function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="", mask::Bool=false, kwargs...)
-	do_radTOA = any(keys(kwargs) .== :radiance_TOA)
-	do_refTOA = any(keys(kwargs) .== :reflectance_TOA)
+mcari(green, red, redEdge1; kw...) = spectral_indices(green, red, redEdge1; index="MCARI", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    MSAVI = msavi(red, nir; kw...)
+
+Modified soil adjusted vegetation index. Qi 1994
+
+MSAVI = nir + 0.5 - (0.5 * sqrt(pow(2.0 * nir + 1.0, 2) - 8.0 * (nir - (2.0 * red))))
+"""
+msavi(red, nir; kw...) = spectral_indices(red, nir; index="MSAVI", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    NBRI = nbri(nir, swir3; kw...)
+
+Normalised Burn Ratio Index. Garcia 1991
+
+NBRI = (nir - swir3) / (nir + swir3)
+"""
+nbri(nir, swir3; kw...) = spectral_indices(swir3, nir; index="NBRI", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    NDVI = ndvi(red, nir; kw...)
+
+Compute the NDVI vegetation index. Input can be either the bands file names, or GMTimage objects
+with the band's data.
+
+NDVI = (nir - red) / (nir + red)
+
+Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` option is set to true.
+"""
+ndvi(red, nir; kw...) = spectral_indices(red, nir; index="NDVI", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    NDWI = ndwi(green, nir; kw...)
+
+Normalized difference water index. McFeeters 1996. NDWI => (green - nir)/(green + nir)
+
+NDWI = (green - nir)/(green + nir)
+"""
+ndwi(green, nir; kw...) = spectral_indices(nir, green; index="NDWI", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    NDWI2 = ndwi2(nir, swir2; kw...)
+
+Normalized difference water index. Gao 1996, Chen 2005 (also known as Normalized Difference Moisture Index
+NDBI and LSWI)
+
+NDWI2 = (nir - swir2)/(nir + swir2)
+"""
+ndwi2(nir, swir2; kw...) = spectral_indices(swir2, nir; index="NDWI2", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    NDREI1 = ndrei1(redEdge1, redEdge2; kw...)
+
+Normalized difference red edge index. Gitelson and Merzlyak 1994
+
+NDREI1 = (redEdge2 - redEdge1) / (redEdge2 + redEdge1)
+"""
+ndrei1(redEdge1, redEdge2; kw...) = spectral_indices(redEdge1, redEdge2; index="NDREI1", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    NDREI2 = ndrei2(redEdge1, redEdge3; kw...)
+
+Normalized difference red edge index 2. Barnes et al 2000
+
+NDREI2 = (redEdge3 - redEdge1) / (redEdge3 + redEdge1)
+"""
+ndrei2(redEdge1, redEdge3; kw...) = spectral_indices(redEdge1, redEdge3; index="NDREI2", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    SATVI = satvi(red, swir2, swir3; kw...)
+
+Soil adjusted total vegetation index. Marsett 2006
+
+SATVI = ((swir2 - red) / (swir2 + red + L)) * (1.0 + L) - (swir3 / 2.0)
+"""
+satvi(red, swir2, swir3; kw...) = spectral_indices(red, swir2, swir3; index="SATVI", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    SAVI = savi(red, nir; kw...)
+
+Soil adjusted vegetation index. Huete 1988
+
+SAVI = (nir - red) * (1.0 + L) / (nir + red + L)
+"""
+savi(red, nir; kw...) = spectral_indices(red, nir; index="SAVI", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    SLAVI = slavi(red, nir, swir2; kw...)
+
+Specific Leaf Area Vegetation Index. Lymburger 2000
+
+SLAVI = nir / (red + swir2)
+"""
+slavi(red, nir, swir2; kw...) = spectral_indices(red, nir, swir2; index="SLAVI", kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="", kwargs...)
+	do_radTOA = any(keys(kwargs) .== :dn2radiance)
+	do_refTOA = any(keys(kwargs) .== :dn2reflectance)
 	do_refSrf = any(keys(kwargs) .== :reflectance_surf)
-	Bnd1 = (do_radTOA) ? radiance_TOA(bnd1) : (do_refTOA) ? reflectance_TOA(bnd1) : (do_refSrf) ? reflectance_surf(bnd1) : gmtread(bnd1)
-	Bnd2 = (do_radTOA) ? radiance_TOA(bnd2) : (do_refTOA) ? reflectance_TOA(bnd2) : (do_refSrf) ? reflectance_surf(bnd2) : gmtread(bnd2)
+	Bnd1 = (do_radTOA) ? dn2radiance(bnd1) : (do_refTOA) ? dn2reflectance(bnd1) : (do_refSrf) ? reflectance_surf(bnd1) : gmtread(bnd1)
+	Bnd2 = (do_radTOA) ? dn2radiance(bnd2) : (do_refTOA) ? dn2reflectance(bnd2) : (do_refSrf) ? reflectance_surf(bnd2) : gmtread(bnd2)
 	if (bnd3 != "")
-		Bnd3 = (do_radTOA) ? radiance_TOA(bnd3) : (do_refTOA) ? reflectance_TOA(bnd3) : (do_refSrf) ? reflectance_surf(bnd3) : gmtread(bnd3)
+		Bnd3 = (do_radTOA) ? dn2radiance(bnd3) : (do_refTOA) ? dn2reflectance(bnd3) : (do_refSrf) ? reflectance_surf(bnd3) : gmtread(bnd3)
 	else
 		Bnd3 = nothing
 	end
-	spectral_indices(bnd1, bnd2, bnd3; index=index, mask=mask, kwargs...)
+	spectral_indices(Bnd1, Bnd2, Bnd3; index=index, kwargs...)
 end
-function spectral_indices(bnd1, bnd2, bnd3=nothing; index::String="", mask::Bool=false, kwargs...)
+
+function spectral_indices(bnd1::GMT.GMTimage, bnd2::GMT.GMTimage, bnd3=nothing; index::String="", kwargs...)
 	(index == "") && error("Must select which index to compute")
 	@assert size(bnd1) == size(bnd2)
-	img = (mask) ? fill(UInt8(0), size(bnd1)) : fill(NaN32, size(bnd1))
-	mn = size(bnd1,1)*size(bnd1,2)
+	mask = any(keys(kwargs) .== :mask)
+
+	d = KW(kwargs)
+	mask = (haskey(d, :mask))
+	threshold = find_in_dict(d, [:threshold])[1]
+	classes = (threshold === nothing) ? find_in_dict(d, [:classes])[1] : nothing
+	(mask && threshold === nothing) && error("The `mask` option requires the `threshold=x` option")
+	(classes !== nothing && length(classes) > 3) && (classes = classes[1:3]; @warn("`classes` maximum elements is 3. Clipping the others"))
+
+	img = (mask || classes !== nothing) ? fill(UInt8(0), size(bnd1)) : fill(NaN32, size(bnd1))
+
+	mn = size(bnd1,1) * size(bnd1,2)
 	C1, C2, G, L, Levi = 6.0, 7.5, 2.5, 0.5, 1.0
 	if (index == "CLG" || index == "CLRE")
 		# Green cholorphyl index. Wu et al 2012		CLG               (redEdge3)/(green)-1
 		# RedEdge cholorphyl index. Clevers and Gitelson 2013	CLRE  (redEdge3)/(redEdge1)-1 
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = bnd2[k] / bnd1[k] - 1
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				img[k] = bnd2[k] / bnd1[k] - 1
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "EVI")			# Enhanced vegetation index. Huete et al 1990
 		# G * ((nir - red) / (nir + C1 * red - C2 * blue + Levi))
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = G * (bnd3[k] - bnd2[k]) / (bnd3[k] + C1 * bnd2[k] - C2 * bnd1[k] + Levi)
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				img[k] = G * (bnd3[k] - bnd2[k]) / (bnd3[k] + C1 * bnd2[k] - C2 * bnd1[k] + Levi)
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "EVI2")		# Two-band Enhanced vegetation index. Jiang et al 2008 
 		# G * ((nir - red) / (nir + 2.4 * red ))
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = (bnd2[k] - bnd1[k]) / (bnd1[k] + 2.4 * bnd2[k])
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				t = G * (bnd2[k] - bnd1[k]) / (bnd2[k] + 2.4 * bnd1[k])
 				(t >= -1 && t <= 1) && (img[k] = t)
 			end
-		end
-	elseif (index == "GNDVI" || index == "MNDWI")
-		# green Normalized diff vegetation index: more sensitive to cholorphyll than ndvi. Gitelson, A., and M. Merzlyak. 
-		# GNDVI		=> (nir - green)/( nir + green)
-		# Modified Normalised Difference Water Index. Xu2006;  MNDWI	=> (green-swir2) / (green+swir2)
-		if (mask)
-		else
-			@inbounds Threads.@threads for k = 1:mn
-				t = (bnd2[k] - bnd1[k]) / (bnd2[k] + bnd1[k])
-				(t >= -1 && t <= 1) && (img[k] = t)
-			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "MTCI")		# Meris Terrestrial Chlorophyll Index. Clevers and Gitelson 2013, Dash and Curran 2004 
 		# (redEdge2-redEdge1) / (redEdge1-red)
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = (bnd3[k] - bnd2[k]) / (bnd2[k] - bnd1[k])
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				img[k] = (bnd3[k] - bnd2[k]) / (bnd2[k] - bnd1[k])
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "MCARI")		# Modified Chlorophyll Absorption ratio index. Daughtery et al. 2000 
 		# (redEdge1 - red - 0.2 * (redEdge1 + green)) * (redEdge1 / red)
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = (bnd3[k] - bnd2[k] - 0.2 * (bnd3[k] - bnd1[k])) * (bnd3[k] / bnd2[k])
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				img[k] = (bnd3[k] - bnd2[k] - 0.2 * (bnd3[k] - bnd1[k])) * (bnd3[k] / bnd2[k])
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "MSAVI")		# Modified soil adjusted vegetation index.
 		# nir + 0.5 - (0.5 * sqrt(pow(2.0 * nir + 1.0, 2) - 8.0 * (nir - (2.0 * red))))
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = bnd2[k] + 0.5 - (0.5 * sqrt((2 * bnd2[k] + 1) ^2) - 8 * (bnd2[k] - (2 * bnd1[k])))
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				img[k] = bnd2[k] + 0.5 - (0.5 * sqrt((2 * bnd2[k] + 1) ^2) - 8 * (bnd2[k] - (2 * bnd1[k])))
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
-	#elseif (index == "NDVIC")		# Normalized difference vegetation index.
-	elseif (index == "NBRI" || index == "NDWI" || index == "NDWI2" || index == "NDREI1" || index == "NDREI2")
-		# Normalised Burn Ratio Index. NRBI => (nir - swir3) / (nir + swir3)
+	elseif (index == "GNDVI" || index == "MNDWI" || index == "NBRI" || index == "NDVI" || index == "NDWI" || index == "NDWI2" || index == "NDREI1" || index == "NDREI2")
+		# green Normalized diff vegetation index: more sensitive to cholorphyll than ndvi. Gitelson, A., and M. Merzlyak. 
+		# GNDVI		=> (nir - green) / (nir + green)
+		# Modified Normalised Difference Water Index. Xu2006;  MNDWI	=> (green-swir2) / (green+swir2)
+		# Normalised Burn Ratio Index. NBRI => (nir - swir3) / (nir + swir3)
 		# Normalized difference water index. McFeeters 1996. NDWI => (green - nir)/(green + nir)
+		# NDVI Normalised Difference Vegetation Index. Rouse 1974. (nir - red) / (nir + red)
 		# NDBI, LSWI. Normalized difference water index. Gao 1996, Chen 2005; NDWI2 => (nir - swir2)/(nir + swir2)
 		# Normalized difference red edge index. Gitelson and Merzlyak 1994; (redEdge2 - redEdge1)/(redEdge2 + redEdge1)
 		# Normalized difference red edge index 2. Barnes et al 2000; (redEdge3 - redEdge1)/(redEdge3 + redEdge1)
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = (bnd2[k] - bnd1[k]) / (bnd1[k] + bnd2[k])
+				(t >= threshold && t <= 1) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				t = (bnd1[k] - bnd2[k]) / (bnd1[k] + bnd2[k])
+				t = (bnd2[k] - bnd1[k]) / (bnd1[k] + bnd2[k])
 				(t >= -1 && t <= 1) && (img[k] = t)
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "SATVI")		# Soil adjusted total vegetation index.
 		# ((swir2 - red) / (swir2 + red + L)) * (1.0 + L) - (swir3 / 2.0)
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = ((bnd2[k] - bnd1[k]) / (bnd2[k] + bnd1[k] + L)) * (1.0 + L) - (bnd3[k] / 2.0) 
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				img[k] = ((bnd2[k] - bnd1[k]) / (bnd2[k] + bnd1[k] + L)) * (1.0 + L) - (bnd3[k] / 2.0) 
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "SAVI")		# Soil adjusted vegetation index. Huete1988
 		# (nir - red) * (1.0 + L) / (nir + red + L);
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = (bnd2[k] - bnd1[k]) * (1.0 + L) / (bnd2[k] - bnd1[k] + L) 
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				img[k] = (bnd2[k] - bnd1[k]) * (1.0 + L) / (bnd2[k] - bnd1[k] + L) 
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
-	elseif (index == "SLAVI")		# 
+	elseif (index == "SLAVI")		# Soil Adjusted Vegetation Index Huete 1988.
 		# nir / (red + swir2)
 		if (mask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = bnd2[k] / (bnd1[k] + bnd3[k]) 
+				(t >= threshold) && (img[k] = 255)
+			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
 				img[k] = bnd2[k] / (bnd1[k] + bnd3[k]) 
 			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	end
-	return (mask) ? nothing : mat2grid(img, bnd1)
+	if (mask)
+		I = mat2img(img, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y)
+		I.range[5], I.range[6] = 0, 255;	I.epsg = Ired.epsg;		I.layout = "BRPa"
+	end
+	return (mask || classes !== nothing) ? I : mat2grid(img, bnd1)
+end
+
+function helper_si!(img, threshold, classes)
+	# Helper function to apply a threshold to a grid OR create a classes image
+	mn = size(img, 1) * size(img, 2)
+	if (threshold !== nothing)		# In this case we return one GMTgrid where < thres = NaN
+		@inbounds Threads.@threads for k = 1:mn
+			(img[k] < threshold) && (img[k] = NaN32)
+		end
+	elseif (classes !== nothing)	# Here we return a GMTimage with up to 4 classes (maximum allowed)
+		@inbounds Threads.@threads for k = 1:mn
+			(img[k] >= classes[1]) && (img[k] = 1)
+			(img[k] >= classes[2]) && (img[k] = 2)
+		end
+		if (length(classes) == 3)
+			@inbounds Threads.@threads for k = 1:mn 
+				(img[k] >= classes[3]) && (img[k] = 3)
+			end
+		end
+	end
 end
