@@ -340,7 +340,7 @@ NDVI = (nir - red) / (nir + red)
 Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` option is set to true.
 """
 ndvi(red, nir; kw...) = spectral_indices(red, nir; index="NDVI", kw...)
-function ndvi(cube::GMTimage{UInt16, 3}, wavelength; kw...)
+function ndvi(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
 	if (wavelength == "Sentinel")
 		o = spectral_indices(@view(cube[:,:,4]), @view(cube[:,:,8]); index="NDVI", kw...)
 		return isa(o, Float32) ? mat2grid(o, cube) : mat2img(o, cube)
@@ -597,7 +597,7 @@ function spectral_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	end
-	if (isa(bnd1, GMTimage))
+	if (isa(bnd1, GMT.GMTimage))
 		if (mask)
 			I = mat2img(img, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y)
 			I.range[5], I.range[6] = 0, 255;	I.epsg = bnd1.epsg;		I.layout = "BRPa"
