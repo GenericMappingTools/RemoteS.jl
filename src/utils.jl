@@ -34,9 +34,18 @@ function truecolor(bndR, bndG, bndB)
 	I = isa(bndB, GMT.GMTimage) ? bndB : gmtread(bndB)
 	@assert size(I,1) == size(img,1) && size(I,2) == size(img,2)
 	_ = mat2img(I.image, stretch=true, img8=view(img,:,:,3), scale_only=1)
-	Io = mat2img(img, I)
-	Io.layout = "TRBa"
+	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
+end
+function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
+	img = Array{UInt8}(undef, size(cube,1), size(cube,2), 3)
+	if (wavelength == "Sentinel")
+		_ = mat2img(@view(cube[:,:,4]), stretch=true, img8=view(img,:,:,1), scale_only=1)
+		_ = mat2img(@view(cube[:,:,3]), stretch=true, img8=view(img,:,:,2), scale_only=1)
+		_ = mat2img(@view(cube[:,:,2]), stretch=true, img8=view(img,:,:,3), scale_only=1)
+		Io = mat2img(img, cube);	Io.layout = "TRBa"
+		Io
+	end
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -331,6 +340,12 @@ NDVI = (nir - red) / (nir + red)
 Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` option is set to true.
 """
 ndvi(red, nir; kw...) = spectral_indices(red, nir; index="NDVI", kw...)
+function ndvi(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
+	if (wavelength == "Sentinel")
+		o = spectral_indices(@view(cube[:,:,4]), @view(cube[:,:,8]); index="NDVI", kw...)
+		return isa(o, Float32) ? mat2grid(o, cube) : mat2img(o, cube)
+	end
+end
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -402,6 +417,12 @@ Specific Leaf Area Vegetation Index. Lymburger 2000
 SLAVI = nir / (red + swir2)
 """
 slavi(red, nir, swir2; kw...) = spectral_indices(red, nir, swir2; index="SLAVI", kw...)
+function slavi(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
+	if (wavelength == "Sentinel")	
+		o = spectral_indices(@view(cube[:,:,4]), @view(cube[:,:,8]), @view(cube[:,:,11]); index="SLAVI", kw...)
+		return isa(o, Float32) ? mat2grid(o, cube) : mat2img(o, cube)
+	end
+end
 
 # ----------------------------------------------------------------------------------------------------------
 function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="", kwargs...)
@@ -418,7 +439,7 @@ function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::St
 	spectral_indices(Bnd1, Bnd2, Bnd3; index=index, kwargs...)
 end
 
-function spectral_indices(bnd1::GMT.GMTimage, bnd2::GMT.GMTimage, bnd3=nothing; index::String="", kwargs...)
+function spectral_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	(index == "") && error("Must select which index to compute")
 	@assert size(bnd1) == size(bnd2)
 	mask = any(keys(kwargs) .== :mask)
@@ -576,11 +597,23 @@ function spectral_indices(bnd1::GMT.GMTimage, bnd2::GMT.GMTimage, bnd3=nothing; 
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	end
-	if (mask)
-		I = mat2img(img, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y)
-		I.range[5], I.range[6] = 0, 255;	I.epsg = Ired.epsg;		I.layout = "BRPa"
+	if (isa(bnd1, GMT.GMTimage))
+		if (mask)
+			I = mat2img(img, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y)
+			I.range[5], I.range[6] = 0, 255;	I.epsg = bnd1.epsg;		I.layout = "BRPa"
+		end
+		#return (mask || classes !== nothing) ? I : mat2grid(img, bnd1)
+		return (mask || classes !== nothing) ? helper_si2(img, bnd1, mask, classes) : mat2grid(img, bnd1)
+	else
+		return img
 	end
-	return (mask || classes !== nothing) ? I : mat2grid(img, bnd1)
+end
+
+function helper_si2(img, refimg, mask, classes)
+	I = mat2img(img, proj4=refimg.proj4, wkt=refimg.wkt, x=refimg.x, y=refimg.y)
+	I.epsg = refimg.epsg;		I.layout = "BRPa"
+	I.range[5], I.range[6] = 0, (mask) ? 255 : length(classes)
+	return I
 end
 
 function helper_si!(img, threshold, classes)
