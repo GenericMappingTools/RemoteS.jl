@@ -37,7 +37,7 @@ function truecolor(bndR, bndG, bndB)
 	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
 end
-function truecolor(cube::GMTimage{UInt16, 3}, wavelength; kw...)
+function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
 	img = Array{UInt8}(undef, size(cube,1), size(cube,2), 3)
 	if (wavelength == "Sentinel")
 		_ = mat2img(@view(cube[:,:,4]), stretch=true, img8=view(img,:,:,1), scale_only=1)
@@ -417,7 +417,7 @@ Specific Leaf Area Vegetation Index. Lymburger 2000
 SLAVI = nir / (red + swir2)
 """
 slavi(red, nir, swir2; kw...) = spectral_indices(red, nir, swir2; index="SLAVI", kw...)
-function slavi(cube::GMTimage{UInt16, 3}, wavelength; kw...)
+function slavi(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
 	if (wavelength == "Sentinel")	
 		o = spectral_indices(@view(cube[:,:,4]), @view(cube[:,:,8]), @view(cube[:,:,11]); index="SLAVI", kw...)
 		return isa(o, Float32) ? mat2grid(o, cube) : mat2img(o, cube)
