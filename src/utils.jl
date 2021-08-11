@@ -37,15 +37,52 @@ function truecolor(bndR, bndG, bndB)
 	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
 end
-function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
+function truecolor(cube::GMTimage{UInt16, 3}, wavelength; kw...)
 	img = Array{UInt8}(undef, size(cube,1), size(cube,2), 3)
-	if (wavelength == "Sentinel")
-		_ = mat2img(@view(cube[:,:,4]), stretch=true, img8=view(img,:,:,1), scale_only=1)
-		_ = mat2img(@view(cube[:,:,3]), stretch=true, img8=view(img,:,:,2), scale_only=1)
-		_ = mat2img(@view(cube[:,:,2]), stretch=true, img8=view(img,:,:,3), scale_only=1)
-		Io = mat2img(img, cube);	Io.layout = "TRBa"
-		Io
+	bands = find_layers(cube, wavelength, 3)
+	_ = mat2img(@view(cube[:,:,bands[1]]), stretch=true, img8=view(img,:,:,1), scale_only=1)
+	_ = mat2img(@view(cube[:,:,bands[2]]), stretch=true, img8=view(img,:,:,2), scale_only=1)
+	_ = mat2img(@view(cube[:,:,bands[3]]), stretch=true, img8=view(img,:,:,3), scale_only=1)
+	Io = mat2img(img, cube);	Io.layout = "TRBa"
+	Io
+end
+
+# ----------------------------------------------------------------------------------------------------------
+function find_layers(cube::GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int)
+	if (maximum(list) < 200)		# The list of bands to pass to the caling fun
+		(maximum(list) > size(cube,3)) && error("Not enough bands to satisfy the bands list request.")
+		bands = list
+	elseif (!isempty(cube.v))		# Must match the wavelength in `list` with those of cube.v
+		bands, n = zeros(Int, length(list)), 0
+		for w in list
+			d, ind = findmin(abs.(w .- cube.v))
+			if (d < tol)
+				bands[n += 1] = ind
+				continue
+			end
+		end
+		(n != length(list)) && error("Some of the wavelegth in $(list) are not present in the `cube.v`")
+		bands
+	else
+		error("The `cube` object does not have a frequencies (`v` coordinates) vector as required here.")
 	end
+	(length(bands) != n_layers) && error("Need $(n_layers) bands but got $(length(bands))")
+	bands
+end
+
+function find_layers(cube::GMTimage{UInt16, 3}, fun_bnd_names::Vector{String}, n_layers::Int)
+	(isempty(cube.names)) && error("The `cube` object does not have a `names` (band names) assigned field as required here.")
+	_names, _fun_names = lowercase.(cube.names), lowercase(fun_bnd_names)
+	bands, n = zeros(Int, length(fun_bnd_names)), 0
+	for fun_name in _fun_names
+		if ((ind = findfirst(fun_name .== _names)) !== nothing)
+			bands[n += 1] = ind
+			continue
+		end
+	end
+	(n != length(fun_bnd_names)) && error("Some of the names in $(fun_bnd_names) are not present in the `cube` names field.")
+	(length(bands) != n_layers) && error("Need $(n_layers) bands but got $(length(bands))")
+	bands
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -199,34 +236,6 @@ function reflectance_surf(fname::String)
 	mat2grid(o, I)
 end
 
-#=
-function ndvi(bndR::String, bndNIR::String; radiance::Bool=false, threshold=0.4, mask::Bool=false)
-	Ired = (radiance) ? dn2radiance(bndR)   : gmtread(bndR)
-	Inir = (radiance) ? dn2radiance(bndNIR) : gmtread(bndNIR)
-	ndvi(Ired, Inir; mask=mask, threshold=threshold)
-end
-function ndvi(Ired, Inir; threshold=0.4, mask::Bool=false)
-	@assert size(Ired) == size(Inir)
-	if (mask)
-		img = fill(UInt8(0), size(Ired))
-		@inbounds Threads.@threads for k = 1:size(Ired,1)*size(Ired,2)
-			t = (Inir[k] - Ired[k]) / (Inir[k] + Ired[k])
-			(t >= threshold && t <= 1) && (img[k] = 255)
-		end
-		I = mat2img(img, proj4=Ired.proj4, wkt=Ired.wkt, x=Ired.x, y=Ired.y)
-		I.range[5], I.range[6] = 0, 255;	I.epsg = Ired.epsg;		I.layout = "BRPa"
-		I
-	else
-		img = fill(NaN32, size(Ired))
-		@inbounds Threads.@threads for k = 1:size(Ired,1)*size(Ired,2)
-			t = (Inir[k] - Ired[k]) / (Inir[k] + Ired[k])
-			(t >= threshold && t <= 1) && (img[k] = t)
-		end
-		G = mat2grid(img, Ired)
-	end
-end
-=#
-
 # ----------------------------------------------------------------------------------------------------------
 """
     CLG = clg(green, redEdge3; kw...)
@@ -235,7 +244,8 @@ Green cholorphyl index. Wu et al 2012.
 
 CLG = (redEdge3)/(green)-1 
 """
-clg(green, redEdge3; kw...) = spectral_indices(green, redEdge3; index="CLG", kw...)
+clg(green, redEdge3; kw...) = sp_indices(green, redEdge3; index="CLG", kw...)
+clg(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="CLG", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -245,7 +255,8 @@ RedEdge cholorphyl index. Clevers and Gitelson 2013.
 
 CLRE = (redEdge3)/(redEdge1)-1
 """
-clre(redEdge1, redEdge3; kw...) = spectral_indices(redEdge1, redEdge3; index="CLRE", kw...)
+clre(redEdge1, redEdge3; kw...) = sp_indices(redEdge1, redEdge3; index="CLRE", kw...)
+clre(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="CLRE", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -256,7 +267,8 @@ Enhanced vegetation index. Huete et al 1990
 EVI = G * ((nir - red) / (nir + C1 * red - C2 * blue + Levi));
 C1, C2, G, Levi = 6.0, 7.5, 2.5, 1.
 """
-evi(blue, red, nir; kw...) = spectral_indices(blue, red, nir; index="EVI", kw...)
+evi(blue, red, nir; kw...) = sp_indices(blue, red, nir; index="EVI", kw...)
+evi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="EVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -266,7 +278,8 @@ Two-band Enhanced vegetation index. Jiang et al 2008
 
 EVI2 = G * ((nir - red) / (nir + 2.4 * red ))
 """
-evi2(red, nir; kw...) = spectral_indices(red, nir; index="EVI2", kw...)
+evi2(red, nir; kw...) = sp_indices(red, nir; index="EVI2", kw...)
+evi2(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="EVI2", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -276,7 +289,8 @@ green Normalized diff vegetation index: more sensitive to cholorphyll than ndvi.
 
 GNDVI = (nir - green) / (nir + green)
 """
-gndvi(green, nir; kw...) = spectral_indices(green, nir; index="GNDVI", kw...)
+gndvi(green, nir; kw...) = sp_indices(green, nir; index="GNDVI", kw...)
+gndvi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="GNDVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -286,7 +300,8 @@ Modified Normalised Difference Water Index. Xu2006
 
 MNDWI = (green-swir2) / (green+swir2)
 """
-mndwi(green, swir2; kw...) = spectral_indices(swir2, green; index="MNDWI", kw...)
+mndwi(green, swir2; kw...) = sp_indices(swir2, green; index="MNDWI", kw...)
+mndwi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MNDWI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -296,7 +311,8 @@ Meris Terrestrial Chlorophyll Index. Clevers and Gitelson 2013, Dash and Curran 
 
 MTCI = (redEdge2-redEdge1) / (redEdge1-red)
 """
-mtci(red, redEdge1, redEdge2; kw...) = spectral_indices(red, redEdge1, redEdge2; index="MTCI", kw...)
+mtci(red, redEdge1, redEdge2; kw...) = sp_indices(red, redEdge1, redEdge2; index="MTCI", kw...)
+mtci(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MTCI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -306,7 +322,8 @@ Modified Chlorophyll Absorption ratio index. Daughtery et al. 2000
 
 MCARI = (redEdge1 - red - 0.2 * (redEdge1 + green)) * (redEdge1 / red)
 """
-mcari(green, red, redEdge1; kw...) = spectral_indices(green, red, redEdge1; index="MCARI", kw...)
+mcari(green, red, redEdge1; kw...) = sp_indices(green, red, redEdge1; index="MCARI", kw...)
+mcari(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MCARI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -316,7 +333,8 @@ Modified soil adjusted vegetation index. Qi 1994
 
 MSAVI = nir + 0.5 - (0.5 * sqrt(pow(2.0 * nir + 1.0, 2) - 8.0 * (nir - (2.0 * red))))
 """
-msavi(red, nir; kw...) = spectral_indices(red, nir; index="MSAVI", kw...)
+msavi(red, nir; kw...) = sp_indices(red, nir; index="MSAVI", kw...)
+msavi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MSAVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -326,7 +344,8 @@ Normalised Burn Ratio Index. Garcia 1991
 
 NBRI = (nir - swir3) / (nir + swir3)
 """
-nbri(nir, swir3; kw...) = spectral_indices(swir3, nir; index="NBRI", kw...)
+nbri(nir, swir3; kw...) = sp_indices(swir3, nir; index="NBRI", kw...)
+nbri(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NBRI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -339,13 +358,8 @@ NDVI = (nir - red) / (nir + red)
 
 Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` option is set to true.
 """
-ndvi(red, nir; kw...) = spectral_indices(red, nir; index="NDVI", kw...)
-function ndvi(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
-	if (wavelength == "Sentinel")
-		o = spectral_indices(@view(cube[:,:,4]), @view(cube[:,:,8]); index="NDVI", kw...)
-		return isa(o, Float32) ? mat2grid(o, cube) : mat2img(o, cube)
-	end
-end
+ndvi(red, nir; kw...) = sp_indices(red, nir; index="NDVI", kw...)
+ndvi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -355,7 +369,8 @@ Normalized difference water index. McFeeters 1996. NDWI => (green - nir)/(green 
 
 NDWI = (green - nir)/(green + nir)
 """
-ndwi(green, nir; kw...) = spectral_indices(nir, green; index="NDWI", kw...)
+ndwi(green, nir; kw...) = sp_indices(nir, green; index="NDWI", kw...)
+ndwi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -366,7 +381,8 @@ NDBI and LSWI)
 
 NDWI2 = (nir - swir2)/(nir + swir2)
 """
-ndwi2(nir, swir2; kw...) = spectral_indices(swir2, nir; index="NDWI2", kw...)
+ndwi2(nir, swir2; kw...) = sp_indices(swir2, nir; index="NDWI2", kw...)
+ndwi2(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI2", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -376,7 +392,8 @@ Normalized difference red edge index. Gitelson and Merzlyak 1994
 
 NDREI1 = (redEdge2 - redEdge1) / (redEdge2 + redEdge1)
 """
-ndrei1(redEdge1, redEdge2; kw...) = spectral_indices(redEdge1, redEdge2; index="NDREI1", kw...)
+ndrei1(redEdge1, redEdge2; kw...) = sp_indices(redEdge1, redEdge2; index="NDREI1", kw...)
+ndrei1(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDREI1", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -386,7 +403,8 @@ Normalized difference red edge index 2. Barnes et al 2000
 
 NDREI2 = (redEdge3 - redEdge1) / (redEdge3 + redEdge1)
 """
-ndrei2(redEdge1, redEdge3; kw...) = spectral_indices(redEdge1, redEdge3; index="NDREI2", kw...)
+ndrei2(redEdge1, redEdge3; kw...) = sp_indices(redEdge1, redEdge3; index="NDREI2", kw...)
+ndrei2(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDREI2", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -396,7 +414,8 @@ Soil adjusted total vegetation index. Marsett 2006
 
 SATVI = ((swir2 - red) / (swir2 + red + L)) * (1.0 + L) - (swir3 / 2.0)
 """
-satvi(red, swir2, swir3; kw...) = spectral_indices(red, swir2, swir3; index="SATVI", kw...)
+satvi(red, swir2, swir3; kw...) = sp_indices(red, swir2, swir3; index="SATVI", kw...)
+satvi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SATVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -406,7 +425,8 @@ Soil adjusted vegetation index. Huete 1988
 
 SAVI = (nir - red) * (1.0 + L) / (nir + red + L)
 """
-savi(red, nir; kw...) = spectral_indices(red, nir; index="SAVI", kw...)
+savi(red, nir; kw...) = sp_indices(red, nir; index="SAVI", kw...)
+savi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="SAVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -416,16 +436,12 @@ Specific Leaf Area Vegetation Index. Lymburger 2000
 
 SLAVI = nir / (red + swir2)
 """
-slavi(red, nir, swir2; kw...) = spectral_indices(red, nir, swir2; index="SLAVI", kw...)
-function slavi(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
-	if (wavelength == "Sentinel")	
-		o = spectral_indices(@view(cube[:,:,4]), @view(cube[:,:,8]), @view(cube[:,:,11]); index="SLAVI", kw...)
-		return isa(o, Float32) ? mat2grid(o, cube) : mat2img(o, cube)
-	end
-end
+slavi(red, nir, swir2; kw...) = sp_indices(red, nir, swir2; index="SLAVI", kw...)
+slavi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SLAVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
-function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="", kwargs...)
+function sp_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="", kwargs...)
+	# Compute spectral indices
 	do_radTOA = any(keys(kwargs) .== :dn2radiance)
 	do_refTOA = any(keys(kwargs) .== :dn2reflectance)
 	do_refSrf = any(keys(kwargs) .== :reflectance_surf)
@@ -436,10 +452,19 @@ function spectral_indices(bnd1::String, bnd2::String, bnd3::String=""; index::St
 	else
 		Bnd3 = nothing
 	end
-	spectral_indices(Bnd1, Bnd2, Bnd3; index=index, kwargs...)
+	sp_indices(Bnd1, Bnd2, Bnd3; index=index, kwargs...)
 end
 
-function spectral_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
+function sp_indices(cube::GMTimage{UInt16, 3}, bands::Vector{Int}; index::String="", kw...)
+	# This version recieves the cube and a vector with the bands list and calls the worker with @view
+	if (length(bands) == 2)
+		sp_indices(@view(cube[:,:,bands[1]]), @view(cube[:,:,bands[2]]); index=index, kw...)
+	else
+		sp_indices(@view(cube[:,:,bands[1]]), @view(cube[:,:,bands[2]]), @view(cube[:,:,bands[3]]); index=index, kw...)
+	end
+end
+
+function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	(index == "") && error("Must select which index to compute")
 	@assert size(bnd1) == size(bnd2)
 	mask = any(keys(kwargs) .== :mask)
@@ -598,22 +623,17 @@ function spectral_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		end
 	end
 	if (isa(bnd1, GMT.GMTimage))
-		if (mask)
+		if (mask || classes !== nothing)
 			I = mat2img(img, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y)
-			I.range[5], I.range[6] = 0, 255;	I.epsg = bnd1.epsg;		I.layout = "BRPa"
+			I.epsg = bnd1.epsg;		I.layout = "BRPa"
+			I.range[5], I.range[6] = 0, (mask) ? 255 : length(classes)
+			return I
+		else
+			return mat2grid(img, bnd1)
 		end
-		#return (mask || classes !== nothing) ? I : mat2grid(img, bnd1)
-		return (mask || classes !== nothing) ? helper_si2(img, bnd1, mask, classes) : mat2grid(img, bnd1)
 	else
 		return img
 	end
-end
-
-function helper_si2(img, refimg, mask, classes)
-	I = mat2img(img, proj4=refimg.proj4, wkt=refimg.wkt, x=refimg.x, y=refimg.y)
-	I.epsg = refimg.epsg;		I.layout = "BRPa"
-	I.range[5], I.range[6] = 0, (mask) ? 255 : length(classes)
-	return I
 end
 
 function helper_si!(img, threshold, classes)
