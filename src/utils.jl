@@ -48,7 +48,7 @@ function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
 end
 
 # ----------------------------------------------------------------------------------------------------------
-function find_layers(cube::GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int)
+function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int)
 	if (maximum(list) < 200)		# The list of bands to pass to the caling fun
 		(maximum(list) > size(cube,3)) && error("Not enough bands to satisfy the bands list request.")
 		bands = list
@@ -70,7 +70,7 @@ function find_layers(cube::GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int
 	bands
 end
 
-function find_layers(cube::GMTimage{UInt16, 3}, fun_bnd_names::Vector{String}, n_layers::Int)
+function find_layers(cube::GMT.GMTimage{UInt16, 3}, fun_bnd_names::Vector{String}, n_layers::Int)
 	(isempty(cube.names)) && error("The `cube` object does not have a `names` (band names) assigned field as required here.")
 	_names, _fun_names = lowercase.(cube.names), lowercase(fun_bnd_names)
 	bands, n = zeros(Int, length(fun_bnd_names)), 0
