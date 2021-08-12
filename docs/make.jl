@@ -16,6 +16,7 @@ deploydocs(
     #repo = "github.com/GenericMappingTools/RemoteS.jl.git",
     repo = "https://www.generic-mapping-tools.org/RemoteS.jl",
 	target  = "build",
+    devurl = "dev",
     versions = ["stable" => "v^", "v#.#", devurl => devurl],
     push_preview = true
 )
