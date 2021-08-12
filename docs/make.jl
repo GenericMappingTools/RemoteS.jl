@@ -1,4 +1,4 @@
-using Documenter, RemoteS
+using Documenter, RemoteS, GMT
 
 makedocs(
     modules = [RemoteS],
@@ -16,5 +16,6 @@ deploydocs(
     #repo = "github.com/GenericMappingTools/RemoteS.jl.git",
     repo = "https://www.generic-mapping-tools.org/RemoteS.jl",
 	target  = "build",
+    versions = ["stable" => "v^", "v#.#", devurl => devurl],
     push_preview = true
 )
