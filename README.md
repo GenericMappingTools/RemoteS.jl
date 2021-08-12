@@ -6,7 +6,7 @@
 ![Lifecycle](https://img.shields.io/badge/lifecycle-retired-orange.svg)
 ![Lifecycle](https://img.shields.io/badge/lifecycle-archived-red.svg)
 ![Lifecycle](https://img.shields.io/badge/lifecycle-dormant-blue.svg) -->
-[![codecov.io](http://codecov.io/github/joa-quim/RemoteS.jl/coverage.svg?branch=master)](http://codecov.io/github/joa-quim/RemoteS.jl?branch=master)
+[![codecov.io](https://codecov.io/github/GenericMappingTools/RemoteS.jl?branch=main)](https://codecov.io/github/GenericMappingTools/RemoteS.jl?branch=main)
 [![Documentation](https://img.shields.io/badge/docs-master-blue.svg)](https://www.generic-mapping-tools.org/RemoteS.jl/dev/)
 <!--
 [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://joa-quim.github.io/RemoteS.jl/stable)
