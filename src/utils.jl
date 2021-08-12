@@ -37,7 +37,7 @@ function truecolor(bndR, bndG, bndB)
 	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
 end
-function truecolor(cube::GMTimage{UInt16, 3}, wavelength; kw...)
+function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
 	img = Array{UInt8}(undef, size(cube,1), size(cube,2), 3)
 	bands = find_layers(cube, wavelength, 3)
 	_ = mat2img(@view(cube[:,:,bands[1]]), stretch=true, img8=view(img,:,:,1), scale_only=1)
@@ -48,7 +48,7 @@ function truecolor(cube::GMTimage{UInt16, 3}, wavelength; kw...)
 end
 
 # ----------------------------------------------------------------------------------------------------------
-function find_layers(cube::GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int)
+function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int)
 	if (maximum(list) < 200)		# The list of bands to pass to the caling fun
 		(maximum(list) > size(cube,3)) && error("Not enough bands to satisfy the bands list request.")
 		bands = list
@@ -70,7 +70,7 @@ function find_layers(cube::GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int
 	bands
 end
 
-function find_layers(cube::GMTimage{UInt16, 3}, fun_bnd_names::Vector{String}, n_layers::Int)
+function find_layers(cube::GMT.GMTimage{UInt16, 3}, fun_bnd_names::Vector{String}, n_layers::Int)
 	(isempty(cube.names)) && error("The `cube` object does not have a `names` (band names) assigned field as required here.")
 	_names, _fun_names = lowercase.(cube.names), lowercase(fun_bnd_names)
 	bands, n = zeros(Int, length(fun_bnd_names)), 0
@@ -245,7 +245,7 @@ Green cholorphyl index. Wu et al 2012.
 CLG = (redEdge3)/(green)-1 
 """
 clg(green, redEdge3; kw...) = sp_indices(green, redEdge3; index="CLG", kw...)
-clg(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="CLG", kw...)
+clg(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="CLG", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -256,7 +256,7 @@ RedEdge cholorphyl index. Clevers and Gitelson 2013.
 CLRE = (redEdge3)/(redEdge1)-1
 """
 clre(redEdge1, redEdge3; kw...) = sp_indices(redEdge1, redEdge3; index="CLRE", kw...)
-clre(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="CLRE", kw...)
+clre(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="CLRE", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -268,7 +268,7 @@ EVI = G * ((nir - red) / (nir + C1 * red - C2 * blue + Levi));
 C1, C2, G, Levi = 6.0, 7.5, 2.5, 1.
 """
 evi(blue, red, nir; kw...) = sp_indices(blue, red, nir; index="EVI", kw...)
-evi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="EVI", kw...)
+evi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="EVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -279,7 +279,7 @@ Two-band Enhanced vegetation index. Jiang et al 2008
 EVI2 = G * ((nir - red) / (nir + 2.4 * red ))
 """
 evi2(red, nir; kw...) = sp_indices(red, nir; index="EVI2", kw...)
-evi2(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="EVI2", kw...)
+evi2(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="EVI2", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -290,7 +290,7 @@ green Normalized diff vegetation index: more sensitive to cholorphyll than ndvi.
 GNDVI = (nir - green) / (nir + green)
 """
 gndvi(green, nir; kw...) = sp_indices(green, nir; index="GNDVI", kw...)
-gndvi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="GNDVI", kw...)
+gndvi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="GNDVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -301,7 +301,7 @@ Modified Normalised Difference Water Index. Xu2006
 MNDWI = (green-swir2) / (green+swir2)
 """
 mndwi(green, swir2; kw...) = sp_indices(swir2, green; index="MNDWI", kw...)
-mndwi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MNDWI", kw...)
+mndwi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MNDWI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -312,7 +312,7 @@ Meris Terrestrial Chlorophyll Index. Clevers and Gitelson 2013, Dash and Curran 
 MTCI = (redEdge2-redEdge1) / (redEdge1-red)
 """
 mtci(red, redEdge1, redEdge2; kw...) = sp_indices(red, redEdge1, redEdge2; index="MTCI", kw...)
-mtci(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MTCI", kw...)
+mtci(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MTCI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -323,7 +323,7 @@ Modified Chlorophyll Absorption ratio index. Daughtery et al. 2000
 MCARI = (redEdge1 - red - 0.2 * (redEdge1 + green)) * (redEdge1 / red)
 """
 mcari(green, red, redEdge1; kw...) = sp_indices(green, red, redEdge1; index="MCARI", kw...)
-mcari(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MCARI", kw...)
+mcari(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MCARI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -334,7 +334,7 @@ Modified soil adjusted vegetation index. Qi 1994
 MSAVI = nir + 0.5 - (0.5 * sqrt(pow(2.0 * nir + 1.0, 2) - 8.0 * (nir - (2.0 * red))))
 """
 msavi(red, nir; kw...) = sp_indices(red, nir; index="MSAVI", kw...)
-msavi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MSAVI", kw...)
+msavi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MSAVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -345,7 +345,7 @@ Normalised Burn Ratio Index. Garcia 1991
 NBRI = (nir - swir3) / (nir + swir3)
 """
 nbri(nir, swir3; kw...) = sp_indices(swir3, nir; index="NBRI", kw...)
-nbri(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NBRI", kw...)
+nbri(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NBRI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -359,7 +359,7 @@ NDVI = (nir - red) / (nir + red)
 Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` option is set to true.
 """
 ndvi(red, nir; kw...) = sp_indices(red, nir; index="NDVI", kw...)
-ndvi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDVI", kw...)
+ndvi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -370,7 +370,7 @@ Normalized difference water index. McFeeters 1996. NDWI => (green - nir)/(green 
 NDWI = (green - nir)/(green + nir)
 """
 ndwi(green, nir; kw...) = sp_indices(nir, green; index="NDWI", kw...)
-ndwi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI", kw...)
+ndwi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -382,7 +382,7 @@ NDBI and LSWI)
 NDWI2 = (nir - swir2)/(nir + swir2)
 """
 ndwi2(nir, swir2; kw...) = sp_indices(swir2, nir; index="NDWI2", kw...)
-ndwi2(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI2", kw...)
+ndwi2(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI2", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -393,7 +393,7 @@ Normalized difference red edge index. Gitelson and Merzlyak 1994
 NDREI1 = (redEdge2 - redEdge1) / (redEdge2 + redEdge1)
 """
 ndrei1(redEdge1, redEdge2; kw...) = sp_indices(redEdge1, redEdge2; index="NDREI1", kw...)
-ndrei1(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDREI1", kw...)
+ndrei1(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDREI1", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -404,7 +404,7 @@ Normalized difference red edge index 2. Barnes et al 2000
 NDREI2 = (redEdge3 - redEdge1) / (redEdge3 + redEdge1)
 """
 ndrei2(redEdge1, redEdge3; kw...) = sp_indices(redEdge1, redEdge3; index="NDREI2", kw...)
-ndrei2(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDREI2", kw...)
+ndrei2(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDREI2", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -415,7 +415,7 @@ Soil adjusted total vegetation index. Marsett 2006
 SATVI = ((swir2 - red) / (swir2 + red + L)) * (1.0 + L) - (swir3 / 2.0)
 """
 satvi(red, swir2, swir3; kw...) = sp_indices(red, swir2, swir3; index="SATVI", kw...)
-satvi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SATVI", kw...)
+satvi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SATVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -426,7 +426,7 @@ Soil adjusted vegetation index. Huete 1988
 SAVI = (nir - red) * (1.0 + L) / (nir + red + L)
 """
 savi(red, nir; kw...) = sp_indices(red, nir; index="SAVI", kw...)
-savi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="SAVI", kw...)
+savi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="SAVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -437,7 +437,7 @@ Specific Leaf Area Vegetation Index. Lymburger 2000
 SLAVI = nir / (red + swir2)
 """
 slavi(red, nir, swir2; kw...) = sp_indices(red, nir, swir2; index="SLAVI", kw...)
-slavi(cube::GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SLAVI", kw...)
+slavi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SLAVI", kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 function sp_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="", kwargs...)
@@ -455,7 +455,7 @@ function sp_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="
 	sp_indices(Bnd1, Bnd2, Bnd3; index=index, kwargs...)
 end
 
-function sp_indices(cube::GMTimage{UInt16, 3}, bands::Vector{Int}; index::String="", kw...)
+function sp_indices(cube::GMT.GMTimage{UInt16, 3}, bands::Vector{Int}; index::String="", kw...)
 	# This version recieves the cube and a vector with the bands list and calls the worker with @view
 	if (length(bands) == 2)
 		sp_indices(@view(cube[:,:,bands[1]]), @view(cube[:,:,bands[2]]); index=index, kw...)
