@@ -1,4 +1,4 @@
-using Documenter, RemoteS, GMT
+using Documenter, RemoteS
 
 makedocs(
     modules = [RemoteS],
