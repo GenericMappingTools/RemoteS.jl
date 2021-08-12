@@ -37,7 +37,7 @@ function truecolor(bndR, bndG, bndB)
 	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
 end
-function truecolor(cube::GMTimage{UInt16, 3}, wavelength; kw...)
+function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
 	img = Array{UInt8}(undef, size(cube,1), size(cube,2), 3)
 	bands = find_layers(cube, wavelength, 3)
 	_ = mat2img(@view(cube[:,:,bands[1]]), stretch=true, img8=view(img,:,:,1), scale_only=1)
