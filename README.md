@@ -26,13 +26,9 @@ Load the Red, Green & Blue bands from a Landsat8 scene from AWS (takes a *little
 using RemoteS, GMT
 
 Ir = gmtread("/vsicurl/http://landsat-pds.s3.amazonaws.com/c1/L8/037/034/LC08_L1TP_037034_20160712_20170221_01_T1/LC08_L1TP_037034_20160712_20170221_01_T1_B4.TIF");
-
 Ig = gmtread("/vsicurl/http://landsat-pds.s3.amazonaws.com/c1/L8/037/034/LC08_L1TP_037034_20160712_20170221_01_T1/LC08_L1TP_037034_20160712_20170221_01_T1_B3.TIF");
-
 Ib = gmtread("/vsicurl/http://landsat-pds.s3.amazonaws.com/c1/L8/037/034/LC08_L1TP_037034_20160712_20170221_01_T1/LC08_L1TP_037034_20160712_20170221_01_T1_B2.TIF");
-
 Irgb = truecolor(Ir, Ig, Ib);
-
 imshow(Irgb)
 ```
 <img src="docs/src/figures/truecolor.png" width="600" class="center"/>
