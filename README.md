@@ -40,4 +40,4 @@ imshow(Irgb)
 Install
 =======
 
-    ] add https://github.com/GenericMappingTools/RemoteS.jl
+    ] add RemoteS
