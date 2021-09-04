@@ -6,6 +6,8 @@ version = "0.1.0"
 [deps]
 GMT = "5752ebe1-31b9-557e-87aa-f909b540aa54"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Dates  = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
@@ -16,3 +18,4 @@ test = ["Test"]
 [compat]
 julia = "1.5"
 GMT = "0.36"
+Requires = "1.1.3"
