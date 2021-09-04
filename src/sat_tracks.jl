@@ -91,7 +91,7 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 		##
 		tt = SatelliteToolbox.r_eci_to_ecef(SatelliteToolbox.TEME(), SatelliteToolbox.PEF(), jd) * r[n]
 		out[n,1], out[n,2], out[n,3], out[n, 4] = tt[1], tt[2], tt[3], jd
-		@show(get_MODIS_scene_name(jd))
+		#@show(get_MODIS_scene_name(jd))
 		#=
 		DT = julian2datetime(jd)
 		Y,M,D = yearmonthday(DT)
