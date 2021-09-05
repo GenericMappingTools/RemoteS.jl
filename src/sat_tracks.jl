@@ -1,3 +1,38 @@
+"""
+sat_tracks(; tiles::Bool=false, position::Bool=false, kwargs...)
+
+Compute satellite tracks using the TLE, or Two Line Elements set, a data format that contains
+information about the orbit at a specific epoch of an Earth-orbiting object. It can also
+calculate polygons arround the scene extents of AQUA and TERRA satellites as well as create
+the scene names, which provides a mean to direct download that data.
+  - `start`: A DateTime object or a string convertable to a DateTime with `DateTime(start)`
+     specifying the start of the orbit calculation. If omited, current time in UTC will be used.
+  - `duration`: Length of time for which the orbit is calculated. Accepts duration in days, hours,
+     minutes or seconds. The default is minutes (100 minutes). To use other units use a string with
+     the value appended with 'D', 'h', 'm' or 's'. _e.g._ `duration="55m"` to compute orbit 55 minutes from `start`
+  - `step` or `inc` or `dt`: The time interval at which to compute locations along the orbit. The default
+     unit here is seconds (30 sec) but minutes can be used as well by appending 'm'. _e.g._ `step="1m"`
+  - `stop`: As alternative to `duration` provide the end date for the orbit. Same conditions as `start`
+  - `position`: Computes only first location af the `start` time. Boolean, use `position=true`
+  - `tle` or `TLE`: a file name with the TLE data for a specific satellite and period. It can also be a
+    two elements string vector with the first and second lines of the TLE file.
+  - `tiles`: Compute the scene limits and file names for some satellites. Currently AQUA only.
+
+### Returns
+A GMTdataset with the orbit or the scene polygons
+
+## Example: 
+Compute ~one orbit of the AQUA satellite starting at current local time. Note, this
+will be accurate for the month of September 2021. For other dates it needs an updated TLE.
+
+    tle1 = "1 27424U 02022A   21245.83760660  .00000135  00000-0  39999-4 0  9997";
+    tle2 = "2 27424  98.2123 186.0654 0002229  67.6025 313.3829 14.57107527 28342";
+    orb = sat_tracks(tle=[tle1; tle2], duration=100);
+
+and the orbit track can be visualized with
+
+    imshow(orb,  proj=:Robinson, region=:global, coast=true)
+"""
 function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=false, kwargs...)
 	# ...
 	(position && tiles) && error("Cannot require tiles and a single position. Makes no sense.")
@@ -9,11 +44,6 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 		else   error("Bad input type ($(typeof(val)). Must be a DateTime, a String or a Tuple(Int)")
 		end
 		return ret
-	end
-
-	function get_MODIS_scene_name(jd)
-		DT = julian2datetime(jd)
-		@sprintf("A%.4d%.3d%.2d%.2d%.2d.L2", year(DT), dayofyear(DT), hour(DT), minute(DT), second(DT))
 	end
 
 	start = ((val = find_in_dict(d, [:start])[1]) === nothing) ? now(Dates.UTC) : getitDTime()
@@ -53,8 +83,9 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 	end
 
 	if (tiles)
-		#if ((val = find_in_dict(d, [:MODIS])[1]) !== nothing)
+		#if ((val = find_in_dict(d, [:AQUA])[1]) !== nothing)
 			dt, halfwidth = 60, 2326958 / 2	# This is if for AQUA (and got by measuring over a L2 grid
+			sat_name = "AQUA"
 		#end
 	end
 
@@ -86,19 +117,18 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 		#jd = datetime2julian(DateTime(start)) + (n-1)*dt / (24 * 3600)
 		tt = SatelliteToolbox.r_eci_to_ecef(SatelliteToolbox.TEME(), SatelliteToolbox.PEF(), jd) * r[n]
 		out[n,1], out[n,2], out[n,3], out[n, 4] = tt[1], tt[2], tt[3], jd
-		#@show(get_MODIS_scene_name(jd))
 	end
 
 	if (tiles)
 		out = mapproject(out, E=true, I=true)
-		return make_sat_tiles(out[1].data, halfwidth)
+		return make_sat_tiles(out[1].data, halfwidth, sat_name)
 	end
 
 	return (geocentric) ? out : mapproject(out, E=true, I=true)[1]
 end
 
 # --------------------------------------------------------------------------------------------
-function make_sat_tiles(track, halfwidth)
+function make_sat_tiles(track, halfwidth, sat_name)
 	_, azim, = invgeod(track[1:end-1, 1:2], track[2:end, 1:2])	# distances and azimuths along the tracks
 	append!(azim, azim[end])		# To make it same size of tracks
 	D = Vector{GMTdataset}(undef, trunc(Int, (length(azim)-1)/5))
@@ -106,8 +136,21 @@ function make_sat_tiles(track, halfwidth)
 	for k = 1:5:length(azim)-5
 		ll14 = geod(track[k,1:2],   [azim[k]+90, azim[k]-90], halfwidth)[1]
 		ll23 = geod(track[k+5,1:2], [azim[k+5]+90, azim[k+5]-90], halfwidth)[1]
-		D[n+=1] = GMTdataset([ll14[1:1,:]; ll23[1:1,:]; ll23[2:2,:]; ll14[2:2,:]; ll14[1:1,:]])
+		sc = get_MODIS_scene_name(track[k,4], sat_name)
+		D[n+=1] = GMTdataset([ll14[1:1,:]; ll23[1:1,:]; ll23[2:2,:]; ll14[2:2,:]; ll14[1:1,:]], String[], sc, String[], "", "", GMT.Gdal.wkbPolygon)
 	end
-	D[1].proj4 = "geog"
+	D[1].proj4 = "+proj=longlat +datum=WGS84 +units=m +no_defs"
 	D
+end
+
+# --------------------------------------------------------------------------------------------
+function get_MODIS_scene_name(jd::Float64, prefix::String, sst::Bool=true)
+	# Build the scene name after it's acquisition time coded in the JD argin.
+	DT = julian2datetime(jd)
+	if (sst)
+		p = (prefix[1] == 'A') ? "AQUA_MODIS." : "TERRA_MODIS."
+		@sprintf("%s%.4d%.2d%.2dT%.2d%.2d01.L2.SST.NRT.nc", p, year(DT), month(DT), day(DT), hour(DT), minute(DT))
+	else
+		@sprintf("%s%.4d%.3d%.2d%.2d00.L2_LAC_OC.nc", prefix[1], year(DT), dayofyear(DT), hour(DT), minute(DT))
+	end
 end
