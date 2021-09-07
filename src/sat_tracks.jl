@@ -128,7 +128,8 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 end
 
 # --------------------------------------------------------------------------------------------
-function make_sat_tiles(track, halfwidth, sat_name)
+function sat_scenes(track, halfwidth, sat_name)
+	# Compute polygons with the scene limits. 'halfwidth' is half the scene width.
 	_, azim, = invgeod(track[1:end-1, 1:2], track[2:end, 1:2])	# distances and azimuths along the tracks
 	append!(azim, azim[end])		# To make it same size of tracks
 	D = Vector{GMTdataset}(undef, trunc(Int, (length(azim)-1)/5))
@@ -139,7 +140,7 @@ function make_sat_tiles(track, halfwidth, sat_name)
 		sc = get_MODIS_scene_name(track[k,4], sat_name)
 		D[n+=1] = GMTdataset([ll14[1:1,:]; ll23[1:1,:]; ll23[2:2,:]; ll14[2:2,:]; ll14[1:1,:]], String[], sc, String[], "", "", GMT.Gdal.wkbPolygon)
 	end
-	D[1].proj4 = "+proj=longlat +datum=WGS84 +units=m +no_defs"
+	D[1].proj4 = geo_proj4
 	D
 end
 
@@ -153,4 +154,45 @@ function get_MODIS_scene_name(jd::Float64, prefix::String, sst::Bool=true)
 	else
 		@sprintf("%s%.4d%.3d%.2d%.2d00.L2_LAC_OC.nc", prefix[1], year(DT), dayofyear(DT), hour(DT), minute(DT))
 	end
+end
+
+# --------------------------------------------------------------------------------------------
+function within_BB(track, bb::Vector{<:Real})
+	# Select the parts of the track that are contained inside the BB.
+	segments = GMT.gmtselect(track, region=bb, f=:g)
+	azim = invgeod(segments[1].data[1:end-1, 1:2], segments[1].data[2:end, 1:2])[2]
+	inds = findall(abs.(diff(azim)) .> 10)			# Detect line breaks
+
+	begin_seg = [1; inds[2:2:length(inds)].+1]		# Not easy to explain why those indices give seg boundaries
+	end_seg   = [inds[2:2:length(inds)]; length(azim)+1]
+	D = Vector{GMTdataset}(undef, length(begin_seg))
+	for k = 1:length(begin_seg)
+		D[k] = GMTdataset(segments[1].data[begin_seg[k]:end_seg[k], :], String[], "", String[], "", "", GMT.Gdal.wkbLineString)
+	end
+	D[1].proj4 = GMT.geo_proj4
+	D
+end
+
+# --------------------------------------------------------------------------------------------
+function findscene(track::Union{GMTdataset, Vector{GMTdataset}}, lon::Real, lat::Real, distmin::Real=Inf)
+	# ...
+	dists = mapproject(track, G=(lon,lat))
+	for k = 1:length(dists)
+		d, ind = findmin(view(dists[k].data, :,5))
+		if (d <= distmin)
+			jd = datetime2julian(floor(julian2datetime(dists[k].data[ind,4]), Dates.Minute(5)))
+			sc = get_MODIS_scene_name(jd, "AQUA", false)
+			println(sc)
+		end
+	end
+end
+
+findscene(date::String, lon::Real, lat::Real, distmin::Real=Inf) = findscene(DateTime(date), lon, lat, distmin)
+function findscene(date::DateTime, lon::Real, lat::Real, distmin::Real=Inf)
+	# ...
+	_date = date - Dates.Day(1)
+	tracks = sat_tracks(start=_date, duration="2D")
+	BB = [lon-10, lon+10, lat-10, lat+10]
+	D = within_BB(tracks, BB)
+	findscene(D, lon, lat, 1163479)
 end
