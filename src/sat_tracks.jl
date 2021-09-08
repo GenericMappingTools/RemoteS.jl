@@ -38,15 +38,7 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 	(position && tiles) && error("Cannot require tiles and a single position. Makes no sense.")
 	d = KW(kwargs)
 
-	function getitDTime()
-		if     isa(val, String) || isa(val, Tuple)  ret::DateTime = DateTime(val)
-		elseif (isa(val, DateTime))  ret = val
-		else   error("Bad input type ($(typeof(val)). Must be a DateTime, a String or a Tuple(Int)")
-		end
-		return ret
-	end
-
-	start = ((val = find_in_dict(d, [:start])[1]) === nothing) ? now(Dates.UTC) : getitDTime()
+	start = ((val = find_in_dict(d, [:start])[1]) === nothing) ? now(Dates.UTC) : getitDTime(val)
 	
 	(tiles) && (start = round(start, Dates.Minute(5)))	# This is for MODIS only
 
@@ -63,8 +55,8 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 		end
 		stop = start + dur
 	else
-		if ((val = find_in_dict(d, [:stop :end])[1]) !== nothing)
-			stop = getitDTime()
+		if ((val = find_in_dict(d, [:stop])[1]) !== nothing)
+			stop = getitDTime(val)
 		else
 			stop = start + Minute(100)		# Default is ~Terra period
 		end
@@ -89,18 +81,9 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 		#end
 	end
 
-	if ((val = find_in_dict(d, [:tle :TLE])[1]) !== nothing)
-		if (isa(val, String))  tle = SatelliteToolbox.read_tle(val)
-		elseif (isa(val, Vector{String}) && length(val) == 2)
-			tle = SatelliteToolbox.read_tle_from_string(val[1], val[2])
-		else
-			error("BAD input TLE data")
-		end
-	else
-		#tle = SatelliteToolbox.read_tle("C:\\v\\Landsat8.tle")
-		tle = SatelliteToolbox.read_tle("C:\\v\\AQUA.tle")
+	if ((val_tle = find_in_dict(d, [:tle_obj])[1]) !== nothing)  tle = val_tle	# Some other fun already got it
+	else                                                         tle = loadTLE(d)
 	end
-
 	orbp = SatelliteToolbox.init_orbit_propagator(Val(:sgp4), tle[1])
 
 	startmfe = (datetime2julian(DateTime(start)) - tle[1].epoch) * 24 * 3600
@@ -125,6 +108,32 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 	end
 
 	return (geocentric) ? out : mapproject(out, E=true, I=true)[1]
+end
+
+# --------------------------------------------------------------------------------------------
+function getitDTime(val)
+	if     isa(val, String) || isa(val, Tuple)  ret::DateTime = DateTime(val)
+	elseif (isa(val, DateTime))  ret = val
+	else   error("Bad input type ($(typeof(val)). Must be a DateTime, a String or a Tuple(Int)")
+	end
+	return ret
+end
+
+# --------------------------------------------------------------------------------------------
+function loadTLE(d::Dict)
+	# Load a TLE or use a default one. In a function because it's used by two functions
+	if ((val = find_in_dict(d, [:tle :TLE])[1]) !== nothing)
+		if (isa(val, String))  tle = SatelliteToolbox.read_tle(val)
+		elseif (isa(val, Vector{String}) && length(val) == 2)
+			tle = SatelliteToolbox.read_tle_from_string(val[1], val[2])
+		else
+			error("BAD input TLE data")
+		end
+	else
+		#tle = SatelliteToolbox.read_tle("C:\\v\\Landsat8.tle")
+		tle = SatelliteToolbox.read_tle("C:\\v\\AQUA.tle")
+	end
+	tle
 end
 
 # --------------------------------------------------------------------------------------------
@@ -174,25 +183,117 @@ function within_BB(track, bb::Vector{<:Real})
 end
 
 # --------------------------------------------------------------------------------------------
-function findscene(track::Union{GMTdataset, Vector{GMTdataset}}, lon::Real, lat::Real, distmin::Real=Inf)
-	# ...
-	dists = mapproject(track, G=(lon,lat))
-	for k = 1:length(dists)
-		d, ind = findmin(view(dists[k].data, :,5))
-		if (d <= distmin)
-			jd = datetime2julian(floor(julian2datetime(dists[k].data[ind,4]), Dates.Minute(5)))
-			sc = get_MODIS_scene_name(jd, "AQUA", false)
-			println(sc)
-		end
-	end
-end
+"""
+    findscenes(lon::Real, lat::Real; kwargs...)
 
-findscene(date::String, lon::Real, lat::Real, distmin::Real=Inf) = findscene(DateTime(date), lon, lat, distmin)
-function findscene(date::DateTime, lon::Real, lat::Real, distmin::Real=Inf)
+Find the names of the scenes that cover the location point `lon`, `lat` in the period determined
+by the dates and satellite set via kwargs.
+  - `day`: Search only on the day time part of the orbits.
+  - `night`: Search only on the night time part of the orbits.
+  - `oc`: For the AQUA or TERRA satellites pick only the chlorophyl content scenes.
+  - `sst`: For the AQUA or TERRA satellites pick only the Sae Surface Temperature content scenes.
+  - `sat`, `SAT` or `satellite`: Name of the satellite to use; choose from (string or symbols)
+     :TERRA, :AQUA, :LANDSAT8
+  - `start`: A DateTime object or a string convertable to a DateTime with `DateTime(start)`
+     specifying the start of the looking period. If omited, current time in UTC will be used.
+  - `duration`: Length of time for which the scenes are searched. The duration is expected in days
+     and can be a negative number, meaning we'll look that span days from `start`.
+  - `stop`: As alternative to `duration` provide the end date for the serch. Same conditions as `start`
+  - `tle` or `TLE`: a file name with the TLE data for a specific satellite and period. It can also be a
+    two elements string vector with the first and second lines of the TLE file.
+
+### Returns
+A string vector with the scene names
+
+## Example: 
+Find the AQUA scenes with chlorophyl-a (oceancolor) that cover the point (-8, 36) in the two days
+before "2021-09-07T17:00:00"
+Note, this will be accurate for the month of September 2021. For other dates it needs an updated TLE.
+
+    tle1 = "1 27424U 02022A   21245.83760660  .00000135  00000-0  39999-4 0  9997";
+    tle2 = "2 27424  98.2123 186.0654 0002229  67.6025 313.3829 14.57107527 28342";
+    findscene(-8,36, start="2021-09-07T17:00:00", sat=:aqua, day=true, duration=-2, oc=1, tle=[tle1, tle2])
+
+	2-element Vector{String}:
+	"A2021251125500.L2_LAC_OC.nc"
+	"A2021252134000.L2_LAC_OC.nc"
+"""
+function findscenes(lon::Real, lat::Real; kwargs...)
 	# ...
-	_date = date - Dates.Day(1)
-	tracks = sat_tracks(start=_date, duration="2D")
+	d = KW(kwargs)
+	((val = find_in_dict(d, [:sat :SAT :satellite])[1]) === nothing) &&
+		error("Must provide the satellite name. Pick one of :TERRA, :AQUA, :LANDSAT8")
+	!isa(val, String) && (val = string(val))
+	sat = uppercase(val)
+	(sat != "TERRA" && sat != "AQUA" && sat != "LANDSAT8") &&
+		error("Unknown satellite name $sat. Must be one of :TERRA, :AQUA, :LANDSAT8")
+
+	day   = (haskey(d, :day))   ? true : false
+	night = (haskey(d, :night)) ? true : false
+	sst   = (haskey(d, :sst))   ? true : false
+	oc    = (haskey(d, :oc))    ? true : false
+	
+	start = ((val = find_in_dict(d, [:start])[1]) === nothing) ? now(UTC) - Day(2) : getitDTime(val)
+	if ((val = find_in_dict(d, [:duration])[1]) !== nothing)
+		period = round(Int, val)
+		(period == 0) && (period = -1; @warn("Duration too short. Using -1 days"))
+		if (period < 0)  stop, start  = start+Day(2), start+Day(2) - Day(-period)
+		else             stop = start + Day(period)
+		end
+	else
+		stop  = ((val = find_in_dict(d, [:stop])[1])  === nothing) ? start + Day(2) : getitDTime(val)
+	end
+	(start >= stop) && error("Start date ($start) is greater or equal to stop ($stop)")
+	(haskey(d, :Vd)) && println("start = ",start, " stop = ", stop)
+
+	tle = loadTLE(d)
+	tracks = sat_tracks(start=start, stop=stop, tle_obj=tle)
 	BB = [lon-10, lon+10, lat-10, lat+10]
 	D = within_BB(tracks, BB)
-	findscene(D, lon, lat, 1163479)
+	(day || night) && (D = day_night_orbits(D, day=day, night=night))
+	isempty(D) && (@warn("No tracks left after this choice."); return nothing)
+
+	scenes = Vector{String}(undef, 0)
+	dists = mapproject(D, G=(lon,lat))
+	for k = 1:length(dists)
+		d, ind = findmin(view(dists[k].data, :,5))
+		if (d <= SCENE_HALFW[sat])
+			jd = datetime2julian(floor(julian2datetime(dists[k][ind,4]), Dates.Minute(5)))
+			sc = get_MODIS_scene_name(jd, sat, sst == true)
+			append!(scenes, [sc])
+		end
+	end
+	scenes
+end
+
+# --------------------------------------------------------------------------------------------
+function day_night_orbits(D; day::Bool=false, night::Bool=false)
+	# Pick only the day or night orbits in D. D is normally the output of the within_BB() fun 
+	(!day && !night) && return D		# No selection requested
+
+	pass = zeros(Bool, length(D))
+	for k = 1:length(D)
+		lon, lat = D[k][1,1:2]
+		jd = D[k][1,4]
+		raise, set = solar(@sprintf("-I%.4f/%.4f+d%s -C", lon, lat, string(julian2datetime(jd))))[1][5:6]
+		# Subtract 0.5 because julian2datetime(0.0) = -4713-11-24T12:00:00. That is JDs are shifted of 0.5
+		t1, t2 = jd - 0.5, D[k][end,4] - 0.5
+		dday_first, dday_last = t1 - trunc(t1), t2 - trunc(t2)
+		if (day)
+			if ((raise < dday_first < set) && (raise < dday_last < set))
+				pass[k] = true
+			elseif (dday_first < raise && dday_last > raise) || (dday_first > raise && dday_last > set)
+				@warn("Track $k contains day and night parts. Accepting it as day but be warned of this.")
+				pass[k] = true
+			end
+		else		# night
+			if !((raise < dday_first < set) && (raise < dday_last < set))
+				pass[k] = true
+			elseif (dday_first < raise && dday_last > set) || (dday_first > raise && dday_last > set)
+				@warn("Track $k contains day and night parts. Accepting it as night but be warned of this.")
+				pass[k] = true
+			end
+		end
+	end
+	D[pass]
 end
