@@ -17,6 +17,8 @@ the scene names, which provides a mean to direct download that data.
   - `tle` or `TLE`: a file name with the TLE data for a specific satellite and period. It can also be a
     two elements string vector with the first and second lines of the TLE file.
   - `tiles`: Compute the scene limits and file names for some satellites. Currently AQUA only.
+  - `sat`, `SAT` or `satellite`: Name of the satellite to use; choose from (string or symbols)
+     :TERRA, :AQUA. Use only with the `tiles` option.
 
 ### Returns
 A GMTdataset with the orbit or the scene polygons
@@ -40,6 +42,7 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 
 	start = ((val = find_in_dict(d, [:start])[1]) === nothing) ? now(Dates.UTC) : getitDTime(val)
 	
+	(tiles) && (sat_name = get_sat_name(d))
 	(tiles) && (start = round(start, Dates.Minute(5)))	# This is for MODIS only
 
 	if ((val = find_in_dict(d, [:duration])[1]) !== nothing)
@@ -74,13 +77,6 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 		dt = 30
 	end
 
-	if (tiles)
-		#if ((val = find_in_dict(d, [:AQUA])[1]) !== nothing)
-			dt, halfwidth = 60, 2326958 / 2	# This is if for AQUA (and got by measuring over a L2 grid
-			sat_name = "AQUA"
-		#end
-	end
-
 	if ((val_tle = find_in_dict(d, [:tle_obj])[1]) !== nothing)  tle = val_tle	# Some other fun already got it
 	else                                                         tle = loadTLE(d)
 	end
@@ -88,6 +84,7 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 
 	startmfe = (datetime2julian(DateTime(start)) - tle[1].epoch) * 24 * 3600
 	stopmfe  = (datetime2julian(DateTime(stop))  - tle[1].epoch) * 24 * 3600
+	(tiles) && (dt = 60)			# Arbitrary choice that works well for MODIS but may need revision for others
 	t = startmfe:dt:stopmfe
 	
 	(position) && (t = [t[1]])		# Single position. Doing it here wastes work above but code is way cleaner
@@ -97,14 +94,13 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 
 	for n = 1:length(t)
 		jd = tle[1].epoch + t[n] / (24 * 3600)
-		#jd = datetime2julian(DateTime(start)) + (n-1)*dt / (24 * 3600)
 		tt = SatelliteToolbox.r_eci_to_ecef(SatelliteToolbox.TEME(), SatelliteToolbox.PEF(), jd) * r[n]
 		out[n,1], out[n,2], out[n,3], out[n, 4] = tt[1], tt[2], tt[3], jd
 	end
 
 	if (tiles)
 		out = mapproject(out, E=true, I=true)
-		return make_sat_tiles(out[1].data, halfwidth, sat_name)
+		return make_sat_tiles(out[1].data, SCENE_HALFW[sat_name], sat_name)
 	end
 
 	return (geocentric) ? out : mapproject(out, E=true, I=true)[1]
@@ -137,6 +133,18 @@ function loadTLE(d::Dict)
 end
 
 # --------------------------------------------------------------------------------------------
+function get_sat_name(d::Dict)::String
+	# Get the satellite name from kwargs (encoded in 'd'). Used by at least two functions
+	((val = find_in_dict(d, [:sat :SAT :satellite])[1]) === nothing) &&
+		error("Must provide the satellite name. Pick one of :TERRA, :AQUA")
+	!isa(val, String) && (val = string(val))
+	sat = uppercase(val)
+	(sat != "TERRA" && sat != "AQUA" && sat != "LANDSAT8") &&
+		error("Unknown satellite name $sat. Must be one of :TERRA, :AQUA")
+	return sat
+end
+
+# --------------------------------------------------------------------------------------------
 function sat_scenes(track, halfwidth, sat_name)
 	# Compute polygons with the scene limits. 'halfwidth' is half the scene width.
 	_, azim, = invgeod(track[1:end-1, 1:2], track[2:end, 1:2])	# distances and azimuths along the tracks
@@ -149,7 +157,7 @@ function sat_scenes(track, halfwidth, sat_name)
 		sc = get_MODIS_scene_name(track[k,4], sat_name)
 		D[n+=1] = GMTdataset([ll14[1:1,:]; ll23[1:1,:]; ll23[2:2,:]; ll14[2:2,:]; ll14[1:1,:]], String[], sc, String[], "", "", GMT.Gdal.wkbPolygon)
 	end
-	D[1].proj4 = geo_proj4
+	D[1].proj4 = prj4WGS84
 	D
 end
 
@@ -178,7 +186,7 @@ function within_BB(track, bb::Vector{<:Real})
 	for k = 1:length(begin_seg)
 		D[k] = GMTdataset(segments[1].data[begin_seg[k]:end_seg[k], :], String[], "", String[], "", "", GMT.Gdal.wkbLineString)
 	end
-	D[1].proj4 = GMT.geo_proj4
+	D[1].proj4 = GMT.prj4WGS84
 	D
 end
 
@@ -193,7 +201,7 @@ by the dates and satellite set via kwargs.
   - `oc`: For the AQUA or TERRA satellites pick only the chlorophyl content scenes.
   - `sst`: For the AQUA or TERRA satellites pick only the Sae Surface Temperature content scenes.
   - `sat`, `SAT` or `satellite`: Name of the satellite to use; choose from (string or symbols)
-     :TERRA, :AQUA, :LANDSAT8
+     :TERRA, :AQUA
   - `start`: A DateTime object or a string convertable to a DateTime with `DateTime(start)`
      specifying the start of the looking period. If omited, current time in UTC will be used.
   - `duration`: Length of time for which the scenes are searched. The duration is expected in days
@@ -221,18 +229,13 @@ Note, this will be accurate for the month of September 2021. For other dates it 
 function findscenes(lon::Real, lat::Real; kwargs...)
 	# ...
 	d = KW(kwargs)
-	((val = find_in_dict(d, [:sat :SAT :satellite])[1]) === nothing) &&
-		error("Must provide the satellite name. Pick one of :TERRA, :AQUA, :LANDSAT8")
-	!isa(val, String) && (val = string(val))
-	sat = uppercase(val)
-	(sat != "TERRA" && sat != "AQUA" && sat != "LANDSAT8") &&
-		error("Unknown satellite name $sat. Must be one of :TERRA, :AQUA, :LANDSAT8")
+	sat = get_sat_name(d)
 
 	day   = (haskey(d, :day))   ? true : false
 	night = (haskey(d, :night)) ? true : false
 	sst   = (haskey(d, :sst))   ? true : false
 	oc    = (haskey(d, :oc))    ? true : false
-	
+
 	start = ((val = find_in_dict(d, [:start])[1]) === nothing) ? now(UTC) - Day(2) : getitDTime(val)
 	if ((val = find_in_dict(d, [:duration])[1]) !== nothing)
 		period = round(Int, val)

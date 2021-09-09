@@ -2,7 +2,7 @@ module RemoteS
 
 using GMT, Printf, Requires, Dates
 
-const SCENE_HALFW = Dict("AQUA" => 1163479, "TERRA" => 1163479, "LANDSAT8" => 95236)	# half widths
+const SCENE_HALFW = Dict("AQUA" => 1163479, "TERRA" => 1163479, "LANDSAT8" => 92500)	# half widths
 
 if isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("@optlevel"))
 	@eval Base.Experimental.@optlevel 1
