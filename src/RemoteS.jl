@@ -9,7 +9,7 @@ if isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("@optle
 end
 
 export
-	dn2temperature, dn2radiance, dn2reflectance, reflectance_surf, grid_at_sensor, truecolor,
+	cutcube, dn2temperature, dn2radiance, dn2reflectance, reflectance_surf, grid_at_sensor, truecolor,
 	clg, clre, evi, evi2, gndvi, mndwi, mtci, mcari, msavi, mbri, ndvi, ndwi, ndwi2, ndrei1,
 	ndrei2, satvi, savi, slavi,
 	sat_tracks, findscenes

@@ -87,6 +87,79 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
+    cutcube(names=String[], bands=Int[], template="", region=nothing, extension=".TIF", description=String[], save="")
+
+Cut a 3D cube out of a Landsat/Sentinel scene within a subregion `region` and a selection of bands.
+
+- `names`: (optional) A vector with the individual bands full file name
+- `bands`: When `names` is not provided give a vector of integers corresponding to the choosen bands.
+           This works well for Landsat and most of Sentinel bands. However, in later case, there are also
+           bands that contain characters, for example band 8A. In this case `bands` should be a vector of
+           strings including the extension. _e.g._ ["02.jp2", "8A.jp2"]
+- `template`: Goes together with the `bands` option. They are both composed a template * band[n] to recreate
+           the full file name of each band.
+- `region` Is the region to extract and must contain the extracting region limits as [W, E, S, N] or a
+           GMT style -R string (without the leading "-R").
+- `extension`: In case the `bands` is numeric but file extensions are not "*.TIF" (case insensitive),
+           use the extension passed by this option.
+- `description`: A vector of strings (as many as bands) with a description for each band. If not provided
+           we build one with the bands file names. This info is kept up unil the file is written in file.
+- `save`:  The file name where to save the output. If not provided, a GMTimage is returned.
+
+Return: `nothing` if the result is written in file or a GMTimage otherwise.
+
+## Examples  
+  
+```julia
+# Cut a Landsat 8 scene for a small region (in UTM) and return a GMTimage with 3 bands in UInt16.
+temp = "C:\\SIG_AnaliseDadosSatelite\\SIG_ADS\\DadosEx2\\LC82040332015145LGN00\\LC82040332015145LGN00_B";
+cube = cutcube(bands=[2,3,4], template=temp, region=[479670,492720,4282230,4294500])
+
+# The same example as above but save the data in a GeoTIFF disk file and use a string for `region`
+cutcube(bands=[2,3,4], template=temp, region="479670/492720/4282230/4294500", save="landsat_cube.tif")
+```
+"""
+function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], template::String="", region=nothing, extension::String=".TIF", description::Vector{String}=String[], save::String="")
+	(region === nothing) && error("The `region` option cannot be empty.")
+	if (isempty(names))
+		(isempty(bands) || template == "") && error("When band file `names` are not provided, MUST indicate `bands` AND `template`")
+		!isa(bands, Vector{<:Integer}) && !isa(bands, Vector{<:String}) && error("`bands` must a vector of Int or Strings.")
+		names = Vector{String}(undef, length(bands))
+		if isa(bands, Vector{Int})
+			[names[k] = @sprintf("%s%d%s", template, bands[k], extension) for k = 1:length(bands)]
+			!isfile(names[1]) &&	# Landsat uses "B2.TIF" and Sentinel "B02.jp2", try again.
+				[names[k] = @sprintf("%s%.02d%s", template, bands[k], extension) for k = 1:length(bands)]
+		else
+			[names[k] = @sprintf("%s%s", template, bands[k]) for k = 1:length(bands)]
+		end
+	end
+	# Now test if any of the file names, either passed in or generated here, do not exist
+	for name in names
+		!isfile(name) && error("File name $name does not exist. Must stop here.")
+	end
+
+	# Little parsing of the -R string but does not test if W < E & S < N
+	_region::String = isa(region, String) ? region :
+	                  @sprintf("%.12g/%.12g/%.12g/%.12g", region[1], region[2], region[3], region[4])
+	startswith(_region, "-R") && (_region = _region[3:end])		# Tolerate a region that starts with "-R"
+	(length(findall("/", _region)) != 3) && error("Badly formed region string: $_region")
+
+	desc = (!isempty(description)) ? description : Vector{String}(undef, length(names))
+	isempty(description) && (desc[1] = splitdir(names[1])[2])	# Must improve this to be able to set Landsat/Sentinel band info
+	cube = grdcut(names[1], R=_region)
+	mat = cube.image
+	for k = 2:length(bands)
+		B = grdcut(names[k], R=_region)
+		mat = cat(mat, B.image, dims=3)
+		isempty(description) && (desc[k] = splitdir(names[k])[2])
+	end
+	cube = mat2img(mat, cube, names=desc)
+	(save != "") && gdaltranslate(cube, dest=save)
+	return (save != "") ? nothing : cube
+end
+
+# ----------------------------------------------------------------------------------------------------------
+"""
 read_mtl(band_name::String, mtl::String="")
 
 Use the `band_name` of a Landsat8 band to find the MTL file with the parameters of the scene at which band
