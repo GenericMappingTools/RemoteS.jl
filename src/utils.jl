@@ -16,6 +16,19 @@ end
 const KW = Dict{Symbol,Any}
 find_in_dict = GMT.find_in_dict
 
+const Lsat8_bd_desc = Dict(
+	1 => "Band 1 - Coastal aerosol [0.43-0.45]",
+	2 => "Band 2 - Blue [0.45-0.51]",
+	3 => "Band 3 - Green [0.53-0.59]",
+	4 => "Band 4 - Red [0.64-0.67]",
+	5 => "Band 5 - Near Infrared [0.85-0.88]",
+	6 => "Band 6 - SWIR 1 [1.57-1.65]",
+	7 => "Band 7 - SWIR 2 [2.11-2.29]",
+	9 => "Band 9 - Cirrus [1.36-1.38]",
+	10 => "Band 10 - Thermal Infrared 1 [10.6-11.19]",
+	11 => "Band 11 - Thermal Infrared 2 [11.50-12.51]")
+
+# ----------------------------------------------------------------------------------------------------------
 """
     Irgb = truecolor(bndR, bndG, bndB)
 
@@ -102,8 +115,9 @@ Cut a 3D cube out of a Landsat/Sentinel scene within a subregion `region` and a 
            GMT style -R string (without the leading "-R").
 - `extension`: In case the `bands` is numeric but file extensions are not "*.TIF" (case insensitive),
            use the extension passed by this option.
-- `description`: A vector of strings (as many as bands) with a description for each band. If not provided
-           we build one with the bands file names. This info is kept up unil the file is written in file.
+- `description`: A vector of strings (as many as bands) with a description for each band. If not provided and
+           the file is recognized as a Landasat 8, band description is added automatically, otherwise
+           we build one with the bands file names. This info will saved if data is written to a file.
 - `save`:  The file name where to save the output. If not provided, a GMTimage is returned.
 
 Return: `nothing` if the result is written in file or a GMTimage otherwise.
@@ -144,18 +158,42 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 	startswith(_region, "-R") && (_region = _region[3:end])		# Tolerate a region that starts with "-R"
 	(length(findall("/", _region)) != 3) && error("Badly formed region string: $_region")
 
-	desc = (!isempty(description)) ? description : Vector{String}(undef, length(names))
-	isempty(description) && (desc[1] = splitdir(names[1])[2])	# Must improve this to be able to set Landsat/Sentinel band info
+	desc = assign_description(names, description)
 	cube = grdcut(names[1], R=_region)
 	mat = cube.image
 	for k = 2:length(bands)
 		B = grdcut(names[k], R=_region)
 		mat = cat(mat, B.image, dims=3)
-		isempty(description) && (desc[k] = splitdir(names[k])[2])
 	end
 	cube = mat2img(mat, cube, names=desc)
 	(save != "") && gdaltranslate(cube, dest=save)
 	return (save != "") ? nothing : cube
+end
+
+function assign_description(names::Vector{String}, description::Vector{String})
+	# Create a description for each band. If 'description', the cutcube() kwarg, is provided we use ir as is.
+	# Next we try to find if 'names' indicate a Landsat8 origin and if yes we use the known names & frequencies
+	# Otherwise we use the file names as descriptors.
+	(!isempty(description) && length(names) != length(description)) &&
+		error("'Description' and 'names' vectors must have the same length")
+	desc = (!isempty(description)) ? description : Vector{String}(undef, length(names))
+
+	t = splitext(splitdir(names[1])[2])[1]
+	if (isempty(description) && (startswith(t, "LC08_") || startswith(t, "LC8")))	# Have Landsat8 data
+		for k = 1:length(names)
+			t = splitext(splitdir(names[k])[2])[1]
+			ind = findfirst("_B", t)
+			bnd = parse(Int, t[ind[end]+1:end])
+			desc[k] = Lsat8_bd_desc[bnd]
+		end
+	else
+		if (isempty(description))
+			[desc[k] = splitext(splitdir(names[k])[2])[1] for k = 1:length(names)]
+		else
+			desc = description
+		end
+	end
+	return desc
 end
 
 # ----------------------------------------------------------------------------------------------------------
