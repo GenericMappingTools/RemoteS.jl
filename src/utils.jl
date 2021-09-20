@@ -25,8 +25,8 @@ const Lsat8_bd_desc = Dict(
 	6 => "Band 6 - SWIR 1 [1.57-1.65]",
 	7 => "Band 7 - SWIR 2 [2.11-2.29]",
 	9 => "Band 9 - Cirrus [1.36-1.38]",
-	10 => "Band 10 - Thermal Infrared 1 [10.6-11.19]",
-	11 => "Band 11 - Thermal Infrared 2 [11.50-12.51]")
+	10 => "Band 10 - Thermal IR 1 [10.6-11.19]",
+	11 => "Band 11 - Thermal IR 2 [11.50-12.51]")
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -62,6 +62,7 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int)
+	# This is for use with cubes that have the frquencies in the vertical coordinate (not finished)
 	if (maximum(list) < 200)		# The list of bands to pass to the caling fun
 		(maximum(list) > size(cube,3)) && error("Not enough bands to satisfy the bands list request.")
 		bands = list
@@ -83,18 +84,16 @@ function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers:
 	bands
 end
 
-function find_layers(cube::GMT.GMTimage{UInt16, 3}, fun_bnd_names::Vector{String}, n_layers::Int)
+function find_layers(cube::GMT.GMTimage{UInt16, 3}, fun_bnd_names::Vector{String})
 	(isempty(cube.names)) && error("The `cube` object does not have a `names` (band names) assigned field as required here.")
 	_names, _fun_names = lowercase.(cube.names), lowercase(fun_bnd_names)
 	bands, n = zeros(Int, length(fun_bnd_names)), 0
 	for fun_name in _fun_names
-		if ((ind = findfirst(fun_name .== _names)) !== nothing)
+		if ((ind = findfirst(startswith.(_names, fun_name))) !== nothing)
 			bands[n += 1] = ind
-			continue
 		end
 	end
 	(n != length(fun_bnd_names)) && error("Some of the names in $(fun_bnd_names) are not present in the `cube` names field.")
-	(length(bands) != n_layers) && error("Need $(n_layers) bands but got $(length(bands))")
 	bands
 end
 
@@ -151,6 +150,8 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 	for name in names
 		!isfile(name) && error("File name $name does not exist. Must stop here.")
 	end
+	MTL = read_mtl(names[1], get_full=true)
+	(MTL !== nothing) && (MTL = ["MTL=" * join(MTL, "\n")])
 
 	# Little parsing of the -R string but does not test if W < E & S < N
 	_region::String = isa(region, String) ? region :
@@ -166,12 +167,12 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 		mat = cat(mat, B.image, dims=3)
 	end
 	cube = mat2img(mat, cube, names=desc)
-	(save != "") && gdaltranslate(cube, dest=save)
+	(save != "") && gdaltranslate(cube, dest=save, meta=MTL)
 	return (save != "") ? nothing : cube
 end
 
 function assign_description(names::Vector{String}, description::Vector{String})
-	# Create a description for each band. If 'description', the cutcube() kwarg, is provided we use ir as is.
+	# Create a description for each band. If 'description', the cutcube() kwarg, is provided we use it as is.
 	# Next we try to find if 'names' indicate a Landsat8 origin and if yes we use the known names & frequencies
 	# Otherwise we use the file names as descriptors.
 	(!isempty(description) && length(names) != length(description)) &&
@@ -198,19 +199,26 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-read_mtl(band_name::String, mtl::String="")
+read_mtl(band_name::String, mtl::String=""; get_full=false)
 
-Use the `band_name` of a Landsat8 band to find the MTL file with the parameters of the scene at which band
+Use the `band_name` of a Landsat8 band to find the MTL file with the scene parameters at which that band
 belongs and read the params needed to compute Brightness temperature, radiance at top of atmosphere, etc.
-If the MTL file does not lieves next to the band file, send its name via the `mtl` argument.
+If the MTL file does not lieve next to the band file, send its name via the `mtl` argument.
 
-Returns a tuple with:
+The `get_full` option makes this function return a tring with contents of the MTL file or `nothing` if
+the MTL file is not found.
+
+### Returns a tuple with:
 
 (band=band, rad_mul=rad_mul, rad_add=rad_add, rad_max=rad_max, reflect_mul=reflect_mul, reflect_add=reflect_add, reflect_max=reflect_max, sun_azim=sun_azim, sun_elev=sun_elev, sun_dis=sun_azim, K1=K1, K2=K2)
+
+or a string with MTL contents (or nothing if MTL file is not found)
 """
-function read_mtl(fname::String, mtl::String="")#::NamedTuple{Int64, Float64, Float64, Float64, Float64, Float64, Float64, Float64, Float64, Float64, Float64, Float64}
+function read_mtl(fname::String, mtl::String=""; get_full::Bool=false)
 	_fname = splitext(fname)[1]
-	((ind = findfirst("_B", fname)) === nothing) && error("This $(fname) is not a valid Landsat8 band file")
+	((ind = findfirst("_B", fname)) === nothing && !get_full) &&
+		error("This $(fname) is not a valid Landsat8 band file name or of a Landsat 8 cube file.")
+	(ind === nothing) && return nothing		# Only happens when get_full = true and name is no Landsat
 	if (mtl == "")
 		mtl = fname[1:ind[1]] * "MTL.txt"
 		if (!isfile(mtl))
@@ -218,17 +226,25 @@ function read_mtl(fname::String, mtl::String="")#::NamedTuple{Int64, Float64, Fl
 			lst = filter(x -> endswith(x, "MTL.txt"), readdir((pato == "") ? "." : pato))
 			if (length(lst) == 1 && startswith(lst[1], _fname[1:16]))
 				mtl = joinpath(pato, lst[1])
+				(!isfile(mtl) && get_full) && return nothing		# Not fatal error in this case
 				!isfile(mtl) && error("MTL file was not transmitted in input and I couldn't find it next the band file.")
 			end
 		end
 	end
-	band = parse(Int, _fname[ind[1]+2:end])
 
+	(!get_full) && (band = parse(Int, _fname[ind[1]+2:end]))
 	f = open(mtl);	lines = readlines(f);	close(f)
+	return (get_full) ? lines : parse_mtl(lines, band)
+end
+
+function parse_mtl(mtl::Vector{<:AbstractString}, band::Int)
+	# Parse the 'mtl' string vector and extract the info relevant for 'band'
+	# Make this a separate function so it can be called from read_mtl() or from the 
+	# MTL metadata stored in a cube file created with cutcube(). 
 
 	function get_par(str)
-		ind = findfirst(findfirst.(str, lines) .!== nothing)
-		parse(Float64, split(lines[ind], "=")[2])
+		ind = findfirst(findfirst.(str, mtl) .!== nothing)
+		parse(Float64, split(mtl[ind], "=")[2])
 	end
 
 	rad_mul = get_par("RADIANCE_MULT_BAND_$(band)")
@@ -247,26 +263,70 @@ function read_mtl(fname::String, mtl::String="")#::NamedTuple{Int64, Float64, Fl
 end
 
 # ----------------------------------------------------------------------------------------------------------
-function helper1_sats(fname::String)
-	pars = read_mtl(fname)
-	I::GMT.GMTimage{UInt16, 2} = gmtread(fname)
-	indNaN = fill(false, size(I))
-	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)	# 5x faster than: indNaN = (I.image .== 0)
-		(I.image[k] == 0) && (indNaN[k] = true)
-	end
+function helper1_sats(fname::String, band_layer::Int)
+	I::GMT.GMTimage{UInt16, 2} = (band_layer == 0) ? gmtread(fname) : gmtread(fname, layer=band_layer)
+	indNaN = isnodata(I)
 	o = Matrix{Float32}(undef, size(I))
-	return I, pars, indNaN, o
+	return I, indNaN, o
+end
+
+function isnodata(array::AbstractArray, val=0)
+	nrows, ncols = size(array,1), size(array,2)
+	indNaN = fill(false, nrows, ncols)
+	@inbounds Threads.@threads for k = 1:nrows * ncols	# 5x faster than: indNaN = (I.image .== 0)
+		(array[k] == val) && (indNaN[k] = true)
+	end
+	indNaN
+end
+
+function parse_lsat8_file(fname::String; band::Int=0, mtl::String="")
+	# See if 'fname' is of a plain Landsat8 .tif file or of a cube created with cutcube().
+	# Depending on the case find the MTL info from file or from the cube's Metadata. Former case
+	# still accepts that the MTL file name be transmitted via the 'mtl' option.
+	# If no errors so far, parse the MTL and extract the parameters concerning the wished 'band'.
+	# This band number will be fetch from the band file name (full Landsat8 product name), or must be
+	# transmitted via 'band' option when reading a cube file.
+	(band < 0 || band > 11) && throw(ArgumentError("Bad Landsat 8 band number $band"))		# Must still accept 0 here
+	ds = GMT.Gdal.unsafe_read(fname)
+	nbands = GMT.Gdal.nraster(ds)
+	meta = GMT.Gdal.GDALGetMetadata(ds.ptr, C_NULL)
+	if (nbands > 1)
+		desc = Vector{String}(undef,0)
+		[append!(desc, [GMT.Gdal.GDALGetDescription(GMT.Gdal.GDALGetRasterBand(ds.ptr, bd))]) for bd = 1:nbands]
+	else
+		desc = [""]
+	end
+	GMT.Gdal.GDALClose(ds.ptr)
+
+	if (nbands > 1)
+		(band == 0) && error("The `band` option must contain the wished Landsat 8 band number. Use `band=N` to set it.")
+		MTL = ((ind = findfirst(startswith.(meta, "MTL=GROUP ="))) !== nothing) ? meta[ind][5:end] :
+			error("Data in a cube (> one layer) must contain the MTL info in Metadata and this one does not.")
+
+		((band_layer = findfirst(startswith.(desc, "Band $band"))) === nothing) && error("Band $band not found in this cube")
+		pars = parse_mtl(split(MTL, "\n"), band)
+	else
+		pars = read_mtl(fname, mtl)		# No 'band' here because it's suposed to be findable in 'fname'
+		band_layer = 0
+	end
+	band_layer, pars
 end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = dn2temperature(fname::String)
+    R = dn2temperature(fname::String; band::Int=0, mtl::String="")
 
 Returns a GMTgrid with the brigthness temperature of Landasat8 termal band (10 or 11)
+
+Input can be either a file name of a LANDSAT_PRODUCT_ID geotiff band, or the name of a cube file created
+with the `cutcube` function. In the first case, if the companion ...MTL.txt file is not in the same directory
+as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
+to use the `band=N` where N is the band number with the data to convert.
 """
-function dn2temperature(fname::String)
-	I, pars, indNaN, o = helper1_sats(fname)
-	(pars.band < 10) && error("Brightness temperature is only for bands 10 or 11. Not this: $(pars.band)")
+function dn2temperature(fname::String; band::Int=0, mtl::String="")
+	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
+	(pars.band < 10) && throw(ArgumentError("Brightness temperature is only for bands 10 or 11. Not this one: $(pars.band)"))
+	I, indNaN, o = helper1_sats(fname, band_layer)
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
 		o[k] = pars.K2 / (log(pars.K1 / (I.image[k] * pars.rad_mul + pars.rad_add) + 1.0)) - 273.15
 	end
@@ -274,14 +334,29 @@ function dn2temperature(fname::String)
 	mat2grid(o, I)
 end
 
+#=
+function dn2temperature(cube::GMT.GMTimage{UInt16, 3}, layer::Int=0, band::Int=0)
+	if (layer == 0)
+		((ind = findfirst(startswith.(cube.names, "Band $band"))) === nothing) && error("Band $band not found")
+		layer = ind
+	end
+end
+=#
+
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = dn2radiance(fname::String)
+    R = dn2radiance(fname::String; band::Int=0, mtl::String="")
 
 Returns a GMTgrid with the radiance at TopOfAtmosphere for the Landsat8 band file `fname`
+
+Input can be either a file name of a LANDSAT_PRODUCT_ID geotiff band, or the name of a cube file created
+with the `cutcube` function. In the first case, if the companion ...MTL.txt file is not in the same directory
+as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
+to use the `band=N` where N is the band number with the data to convert.
 """
-function dn2radiance(fname::String)
-	I, pars, indNaN, o = helper1_sats(fname)
+function dn2radiance(fname::String; band::Int=0, mtl::String="")
+	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
+	I, indNaN, o = helper1_sats(fname, band_layer)
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
 		o[k] = I.image[k] * pars.rad_mul + pars.rad_add
 	end
@@ -291,13 +366,19 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = dn2reflectance(fname::String)
+    R = dn2reflectance(fname::String; band::Int=0, mtl::String="")
 
 Returns a GMTgrid with the TopOfAtmosphere planetary reflectance for the Landsat8 band file `fname`
+
+Input can be either a file name of a LANDSAT_PRODUCT_ID geotiff band, or the name of a cube file created
+with the `cutcube` function. In the first case, if the companion ...MTL.txt file is not in the same directory
+as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
+to use the `band=N` where N is the band number with the data to convert.
 """
-function dn2reflectance(fname::String)
-	I, pars, indNaN, o = helper1_sats(fname)
+function dn2reflectance(fname::String; band::Int=0, mtl::String="")
+	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
 	(pars.band >= 10) && error("Computing Reflectance for Thermal bands is not defined.")
+	I, indNaN, o = helper1_sats(fname, band_layer)
 	s_elev = sin(pars.sun_elev * pi/180)
 	fact_x = pars.reflect_mul / s_elev
 	fact_a = pars.reflect_add / s_elev
@@ -310,15 +391,21 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = reflectance_surf(fname::String)
+    R = reflectance_surf(fname::String; band::Int=0, mtl::String="")
 
 Compute the radiance-at-surface of Landsat8 band using the COST model.
 
 Returns a Float32 GMTgrid type
+
+Input can be either a file name of a LANDSAT_PRODUCT_ID geotiff band, or the name of a cube file created
+with the `cutcube` function. In the first case, if the companion ...MTL.txt file is not in the same directory
+as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
+to use the `band=N` where N is the band number with the data to convert.
 """
-function reflectance_surf(fname::String)
-	I, pars, indNaN, o = helper1_sats(fname)
+function reflectance_surf(fname::String; band::Int=0, mtl::String="")
+	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
 	(pars.band >= 10) && error("Computing Surface Reflectance for Thermal bands is not defined.")
+	I, indNaN, o = helper1_sats(fname, band_layer)
 
 	s_elev = sin(pars.sun_elev * pi/180)
 	Esun = (pi * pars.sun_dist ^2) * pars.rad_max / pars.reflect_max
