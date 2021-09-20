@@ -50,19 +50,19 @@ function truecolor(bndR, bndG, bndB)
 	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
 end
-function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength; kw...)
+function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength)
 	img = Array{UInt8}(undef, size(cube,1), size(cube,2), 3)
-	bands = find_layers(cube, wavelength, 3)
-	_ = mat2img(@view(cube[:,:,bands[1]]), stretch=true, img8=view(img,:,:,1), scale_only=1)
-	_ = mat2img(@view(cube[:,:,bands[2]]), stretch=true, img8=view(img,:,:,2), scale_only=1)
-	_ = mat2img(@view(cube[:,:,bands[3]]), stretch=true, img8=view(img,:,:,3), scale_only=1)
+	layers = find_layers(cube, wavelength, 3)
+	_ = mat2img(@view(cube[:,:,layers[1]]), stretch=true, img8=view(img,:,:,1), scale_only=1)
+	_ = mat2img(@view(cube[:,:,layers[2]]), stretch=true, img8=view(img,:,:,2), scale_only=1)
+	_ = mat2img(@view(cube[:,:,layers[3]]), stretch=true, img8=view(img,:,:,3), scale_only=1)
 	Io = mat2img(img, cube);	Io.layout = "TRBa"
 	Io
 end
 
 # ----------------------------------------------------------------------------------------------------------
 function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int)
-	# This is for use with cubes that have the frquencies in the vertical coordinate (not finished)
+	# This function is not finished
 	if (maximum(list) < 200)		# The list of bands to pass to the caling fun
 		(maximum(list) > size(cube,3)) && error("Not enough bands to satisfy the bands list request.")
 		bands = list
@@ -86,15 +86,76 @@ end
 
 function find_layers(cube::GMT.GMTimage{UInt16, 3}, fun_bnd_names::Vector{String})
 	(isempty(cube.names)) && error("The `cube` object does not have a `names` (band names) assigned field as required here.")
-	_names, _fun_names = lowercase.(cube.names), lowercase(fun_bnd_names)
-	bands, n = zeros(Int, length(fun_bnd_names)), 0
-	for fun_name in _fun_names
-		if ((ind = findfirst(startswith.(_names, fun_name))) !== nothing)
-			bands[n += 1] = ind
-		end
+	helper_find_layers(cube.names, fun_bnd_names)
+end
+
+function find_layers(fname::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], alllayers::Bool=false)
+	# 'layers' just return itself after checking that the cube file actually contain that many layers
+	# 'bands' search for "Band bands[k]"
+	# 'bandnames' search the bands description for the first layer that contains bandnames[k]
+	# Returns the numeric layers (1-based) corresponding to the search criteria and the bands description
+	(!alllayers && isempty(bands) && isempty(bandnames)) && error("Must use either the 'bands' OR the 'bandnames' option.")
+	ds = GMT.Gdal.unsafe_read(fname)
+	nbands = GMT.Gdal.nraster(ds)
+	msg = ""
+	(nbands < 2) && (msg = "This file ($fname) does not contain cube data (more than one layer).")
+	(!isempty(layers) && maximum(layers) > nbands) && (msg = "Asked for more 'layers' than this cube contains.")
+	(msg != "") && (GMT.Gdal.GDALClose(ds.ptr); error(msg))
+	desc = fill("", nbands)
+	[desc[k] = GMT.Gdal.GDALGetDescription(GMT.Gdal.GDALGetRasterBand(ds.ptr, k)) for k = 1:nbands]
+	GMT.Gdal.GDALClose(ds.ptr)
+
+	(!isempty(layers)) && return layers, desc
+
+	(all(desc .== "")) && error("This cube file has no band descriptions so cannot use the 'band' or 'bandnames' options.")
+	
+	(alllayers) && return collect(1:nbands), desc	# OK, just return them ALL
+
+	(!isempty(bands)) && (bandnames = ["Band $(bands[k])" for k = 1:length(bands)])		# Create a bandnames vector
+	_layers = helper_find_layers(lowercase.(desc), bandnames)
+	return _layers, desc
+end
+
+helper_find_layers(desc::Vector{String}, band_names::String) = helper_find_layers(desc, [band_names])
+function helper_find_layers(desc::Vector{String}, band_names::Vector{String})::Vector{Int}
+	# Note, 'desc' is supposed to be in lowercase already.
+	bnd_names = lowercase.(band_names)
+	bands, n = zeros(Int, length(bnd_names)), 0
+	for bnd_name in bnd_names
+		((ind = findfirst(contains.(desc, bnd_name))) !== nothing) && (bands[n += 1] = ind)
 	end
-	(n != length(fun_bnd_names)) && error("Some of the names in $(fun_bnd_names) are not present in the `cube` names field.")
+	(n != length(bnd_names)) && error("Some of the names in $(band_names) are not present in the `cube` names/description.")
 	bands
+end
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    reportbands(in; [bands::Vector{Int}])
+or
+
+    reportbands(in, band;)
+
+Report the bands description of the `in` input argument. This can be a GMTimage or a file name (a String) of 
+a 'cube' file. Normally one made with the `cutcube` function. When the use conditions of this function are not met,
+either a warning or an error message (if too deep to be caught as a warning) will be issued.
+
+- `bands`: When this optional parameter is used, report the description of the bands in the vector `bands`
+- `band`: A scalar with a unique band number. Alternative form to `reportbands(in, bands=[band])`
+
+Returns a string vector.
+"""
+reportbands(in, band::Int) = reportbands(in, bands=[band])
+function reportbands(in; bands::Vector{Int}=Int[])
+	if (isa(in, GMT.GMTimage))
+		isempty(in.names) && (println("This image object does not have a `names` assigned field"); return nothing)
+		isempty(bands) && return in.names		# Return them all
+		return (isempty(bands)) ? in.names : in.names[bands]
+	elseif (isa(in, String))
+		layers, desc = find_layers(in, bands=bands, alllayers=isempty(bands))
+		return desc[layers]
+	else
+		error("Bad input argument. Must be a GMTimage or a file name. Not $(typeof(in))")
+	end
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -258,7 +319,6 @@ function parse_mtl(mtl::Vector{<:AbstractString}, band::Int)
 	sun_dist = get_par("EARTH_SUN")
 	K1 = (band >= 10) ? get_par("K1_CONSTANT_BAND_$(band)") : 0.0
 	K2 = (band >= 10) ? get_par("K2_CONSTANT_BAND_$(band)") : 0.0
-	#(band=band, rad_mul=rad_mul, rad_add=rad_add, rad_max=rad_max, reflect_mul=reflect_mul, reflect_add=reflect_add, reflect_max=reflect_max, sun_azim=sun_azim, sun_elev=sun_elev, sun_dist=sun_azim, K1=K1, K2=K2)
 	MTL_short(band, rad_mul, rad_add, rad_max, reflect_mul, reflect_add, reflect_max, sun_azim, sun_elev, sun_dist, K1, K2)
 end
 
