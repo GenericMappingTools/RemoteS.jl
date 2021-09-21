@@ -110,7 +110,7 @@ end
 function getitDTime(val)
 	if     isa(val, String) || isa(val, Tuple)  ret::DateTime = DateTime(val)
 	elseif (isa(val, DateTime))  ret = val
-	else   error("Bad input type ($(typeof(val)). Must be a DateTime, a String or a Tuple(Int)")
+	else   error("Bad input type $(typeof(val)). Must be a DateTime, a String or a Tuple(Int)")
 	end
 	return ret
 end
@@ -135,7 +135,7 @@ end
 # --------------------------------------------------------------------------------------------
 function get_sat_name(d::Dict)::String
 	# Get the satellite name from kwargs (encoded in 'd'). Used by at least two functions
-	((val = find_in_dict(d, [:sat :SAT :satellite])[1]) === nothing) &&
+	((val = RemoteS.find_in_dict(d, [:sat :SAT :satellite])[1]) === nothing) &&
 		error("Must provide the satellite name. Pick one of :TERRA, :AQUA")
 	!isa(val, String) && (val = string(val))
 	sat = uppercase(val)
