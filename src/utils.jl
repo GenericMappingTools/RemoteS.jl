@@ -36,6 +36,27 @@ Take three Landsat8/Sentinel2 UINT16 GMTimages or the file names of those bands 
 an RGB true color image applying automatic histogram stretching.
 
 Return an UInt8 RGB GMTimage
+
+    Irgb = truecolor(cube::GMTImage, bands::Vector{Int})
+
+Make an RGB composition of the 3 bands passed in the vector 'bands' from the layers in the multi-layered GMTimage `cube`
+
+Return an auto-stretched UInt8 RGB GMTimage
+
+    Irgb = truecolor(cube::String, [bands::Vector{Int}], [bandnames::Vector{String}], [raw=false])
+
+Make an RGB composition of 3 bands from the `cube` file holding a UInt16 multi-layered array (often created with `cutcube`)
+The band selection can be made with `bands` vector, case in which we will search for bands named "Band band[k]"
+or where the bands description contain the contents of `bandnames`. If none of `bands` or `bandnames` is used
+we search for a made up `bandnames=["red", "green", "blue"]`.
+
+Return an auto-stretched UInt8 RGB GMTimage OR a GMTimage{UInt16,3} if the `raw` option is set to `true`.
+
+### Example:
+Make an RGB composite from data in the cube file "LC08__cube.tiff"
+```julia
+I = truecolor("LC08__cube.tiff");
+```
 """
 function truecolor(bndR, bndG, bndB)
 	I = isa(bndR, GMT.GMTimage) ? bndR : gmtread(bndR)
@@ -50,14 +71,21 @@ function truecolor(bndR, bndG, bndB)
 	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
 end
-function truecolor(cube::GMT.GMTimage{UInt16, 3}, wavelength)
-	img = Array{UInt8}(undef, size(cube,1), size(cube,2), 3)
-	layers = find_layers(cube, wavelength, 3)
+function truecolor(cube::GMT.GMTimage{UInt16, 3}, bands::Vector{Int})
+	(length(bands) != 3) && error("For an RGB composition 'bands' must be a 3 elements array and not $(length(bands))")
+	img = Array{UInt8, 3}(undef, size(cube,1), size(cube,2), 3)
+	layers = find_layers(cube, bands, 3)
 	_ = mat2img(@view(cube[:,:,layers[1]]), stretch=true, img8=view(img,:,:,1), scale_only=1)
 	_ = mat2img(@view(cube[:,:,layers[2]]), stretch=true, img8=view(img,:,:,2), scale_only=1)
 	_ = mat2img(@view(cube[:,:,layers[3]]), stretch=true, img8=view(img,:,:,3), scale_only=1)
 	Io = mat2img(img, cube);	Io.layout = "TRBa"
 	Io
+end
+function truecolor(cube::String; bands::Vector{Int}=Int[], bandnames::Vector{String}=String[], raw::Bool=false)
+	(isempty(bands) && isempty(bandnames)) && (bandnames = ["red", "green", "blue"])
+	layers = find_layers(cube, bands=bands, bandnames=bandnames)[1]
+	rgb = gmtread(cube, band=layers, layout="TRBa")		# This one is still UInt16
+	return (!raw) ? mat2img(rgb, stretch=:auto) : rgb	# Convert to UInt8 with autostretch or return the raw GMTimage data
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -95,6 +123,7 @@ function find_layers(fname::String; bands::Vector{Int}=Int[], layers::Vector{Int
 	# 'bandnames' search the bands description for the first layer that contains bandnames[k]
 	# Returns the numeric layers (1-based) corresponding to the search criteria and the bands description
 	(!alllayers && isempty(bands) && isempty(bandnames)) && error("Must use either the 'bands' OR the 'bandnames' option.")
+	GMT.ressurectGDAL()		# Yep, shit, sometimes its needed.
 	ds = GMT.Gdal.unsafe_read(fname)
 	nbands = GMT.Gdal.nraster(ds)
 	msg = ""
