@@ -15,6 +15,7 @@ export
 	sat_tracks, findscenes, reportbands
 
 include("grid_at_sensor.jl")
+include("spectral_indices.jl")
 include("utils.jl")
 
 function __init__()
