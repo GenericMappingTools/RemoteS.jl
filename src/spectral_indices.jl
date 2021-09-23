@@ -1,5 +1,5 @@
 const generic_docs = "
-- The first form, `evi(blue, red, nir; kw...)`, accepts inputs as matrices, or file names of the data bands.
+- The first form accepts inputs as matrices, or file names of the data bands.
 - The second form is more versatile but also more complex to describe.
   - `cube`: Is the file name of a 'cube', a multi-layered file normally created with the [`cutcube`](@ref) function.
      If this file was created with band descriptions one can use the `bands` or the `bandnames` options.
@@ -17,8 +17,11 @@ const generic_docs = "
   - `classes`: is a vector with up to 3 elements (class separators) and we return a  UInt8 GMTimage with the
     indices categorized into vals[ij] > classes[1] = 1; vals[ij] > classes[2] = 2; vals[ij] > classes[3] = 3 and 0 otherwise.
   - `mask`: Used together with `threshold` outputs a UInt8 GMTimage mask with `vals[ij] > threshold = 255` and 0 otherwise
+  - `save`: Use `save=\"file_name.ext\"` to save the result in a disk file. File format is picked from file extension.
 
 If none of `bands`, `layers` or `bandnames` is provided, we use the default band names shown in the first form.
+
+See also https://www.indexdatabase.de/ for a list of indices and the appropriate band names per sensor.
 
 Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` or `classes` options are used.
 "
@@ -28,7 +31,8 @@ function helper_si_method(cube::String, index::String; bands::Vector{Int}=Int[],
 	                      bandnames::Vector{String}=String[], defbandnames::Vector{String}=String[], kw...)
 	# Helper function to compute Spectral Indices from a 'cube' file and somehow band selection.
 	(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bandnames = defbandnames)
-	sp_indices(subcube(cube, bands=bands, layers=layers, bandnames=bandnames), [1,2]; index=index, kw...)
+	sc = subcube(cube, bands=bands, layers=layers, bandnames=bandnames)
+	sp_indices(sc, collect(1:size(sc,3)); index=index, kw...)	# Here we know that the layers are all of those in scube
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -144,8 +148,9 @@ mtci(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(
 
 Modified Chlorophyll Absorption ratio index. Daughtery et al. 2000
 
-MCARI = (redEdge1 - red - 0.2 * (redEdge1 + green)) * (redEdge1 / red)
+MCARI = (redEdge1 - red - 0.2 * (redEdge1 - green)) * (redEdge1 / red)
 """
+# Sentinel-2 Band 5 (VNIR), Band 4 (Red) and Band 3 (Green).
 mcari(green, red, redEdge1; kw...) = sp_indices(green, red, redEdge1; index="MCARI", kw...)
 mcari(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MCARI", kw...)
 
@@ -262,10 +267,12 @@ ndrei2(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layer
 
 Soil adjusted total vegetation index. Marsett 2006
 
-SATVI = ((swir2 - red) / (swir2 + red + L)) * (1.0 + L) - (swir3 / 2.0)
+SATVI = ((swir1 - red) / (swir1 + red + L)) * (1.0 + L) - (swir2 / 2.0)
 """
 satvi(red, swir2, swir3; kw...) = sp_indices(red, swir2, swir3; index="SATVI", kw...)
 satvi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SATVI", kw...)
+satvi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "SATVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "swir 1", "swir 2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -312,7 +319,10 @@ function helper_sp_indices(kwargs...)
 	classes = (threshold === nothing) ? find_in_dict(d, [:classes])[1] : nothing
 	(mask && threshold === nothing) && error("The `mask` option requires the `threshold=x` option")
 	(classes !== nothing && length(classes) > 3) && (classes = classes[1:3]; @warn("`classes` maximum elements is 3. Clipping the others"))
-	return mask, classes, threshold
+	save_name::String = ((val = find_in_dict(d, [:save])[1]) !== nothing) ? val : ""
+	dbg = (find_in_dict(d, [:Vd :dbg])[1] !== nothing)
+	(length(d) > 0) && println("Warning: the following options were not consumed in sp_indices => ", keys(d))
+	return mask, classes, threshold, save_name, dbg
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -333,7 +343,8 @@ end
 
 function sp_indices(cube::GMT.GMTimage{UInt16, 3}, bands::Vector{Int}; index::String="", kw...)
 	# This method recieves the cube and a vector with the bands list and calls the worker with @view
-	mask, classes, = helper_sp_indices(kw...)	# Do this first because if it errors no point in continuing
+	mask, classes, _, save_name, dbg = helper_sp_indices(kw...)	# Do this first because if it errors no point in continuing
+	(dbg) && println(cube.names)
 	if (length(bands) == 2)
 		o = sp_indices(@view(cube[:,:,bands[1]]), @view(cube[:,:,bands[2]]); index=index, kw...)
 	else
@@ -346,17 +357,19 @@ function sp_indices(cube::GMT.GMTimage{UInt16, 3}, bands::Vector{Int}; index::St
 		O = mat2grid(o, cube)
 	end
 	O.names = [index * " index"]
-	O
+	(save_name != "") && gmtwrite(save_name, O)
+	return (save_name == "") ? O : nothing
 end
 
 function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	# This is the method who does the real work.
 	(index == "") && error("Must select which index to compute")
 	@assert size(bnd1) == size(bnd2)
-	mask, classes, threshold = helper_sp_indices(kwargs...)
+	mask, classes, threshold, save_name, = helper_sp_indices(kwargs...)
 	img = (mask || classes !== nothing) ? fill(UInt8(0), size(bnd1)) : fill(NaN32, size(bnd1))
 
 	mn = size(bnd1,1) * size(bnd1,2)
+	i_tmax = 1. / typemax(eltype(bnd1))
 	C1, C2, G, L, Levi = 6.0, 7.5, 2.5, 0.5, 1.0
 	if (index == "CLG" || index == "CLRE")
 		# Green cholorphyl index. Wu et al 2012		CLG               (redEdge3)/(green)-1
@@ -374,67 +387,86 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		end
 	elseif (index == "EVI")			# Enhanced vegetation index. Huete et al 1990
 		# G * ((nir - red) / (nir + C1 * red - C2 * blue + Levi))
+		(bnd3 === nothing) && error("NIR component cannot be empty")
+		@assert size(bnd3) == size(bnd2)
+		blue = bnd1;	red = bnd2;		nir = bnd3
+		_C2 = C2 * i_tmax;
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = G * (bnd3[k] - bnd2[k]) / (bnd3[k] + C1 * bnd2[k] - C2 * bnd1[k] + Levi)
+				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
+				t = G * ((t_nir - t_red) / (t_nir + C1 * t_red - _C2 * blue[k] + Levi))
 				(t >= threshold) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				img[k] = G * (bnd3[k] - bnd2[k]) / (bnd3[k] + C1 * bnd2[k] - C2 * bnd1[k] + Levi)
+				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
+				img[k] = G * ((t_nir - t_red) / (t_nir + C1 * t_red - _C2 * blue[k] + Levi))
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "EVI2")		# Two-band Enhanced vegetation index. Jiang et al 2008 
 		# G * ((nir - red) / (nir + 2.4 * red ))
+		red = bnd1;		nir = bnd2
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = (bnd2[k] - bnd1[k]) / (bnd1[k] + 2.4 * bnd2[k])
+				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
+				t = G * (t_nir - t_red) / (t_red + 2.4 * t_nir)
 				(t >= threshold) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				t = G * (bnd2[k] - bnd1[k]) / (bnd2[k] + 2.4 * bnd1[k])
+				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
+				t = G * (t_nir - t_red) / (t_red + 2.4 * t_nir)
 				(t >= -1 && t <= 1) && (img[k] = t)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "MTCI")		# Meris Terrestrial Chlorophyll Index. Clevers and Gitelson 2013, Dash and Curran 2004 
 		# (redEdge2-redEdge1) / (redEdge1-red)
+		red = bnd1;		redEdge1 = bnd2;	redEdge2 = bnd3
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = (bnd3[k] - bnd2[k]) / (bnd2[k] - bnd1[k])
+				t_redEdge1 = redEdge1[k]*i_tmax
+				t = (redEdge2[k]*i_tmax - t_redEdge1) / (t_redEdge1 - red[k]*i_tmax)
 				(t >= threshold) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				img[k] = (bnd3[k] - bnd2[k]) / (bnd2[k] - bnd1[k])
+				t_redEdge1 = redEdge1[k]*i_tmax
+				img[k] = (redEdge2[k]*i_tmax - t_redEdge1) / (t_redEdge1 - red[k]*i_tmax)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "MCARI")		# Modified Chlorophyll Absorption ratio index. Daughtery et al. 2000 
-		# (redEdge1 - red - 0.2 * (redEdge1 + green)) * (redEdge1 / red)
+		# (redEdge1 - red - 0.2 * (redEdge1 - green)) * (redEdge1 / red)
+		# Sentinel-2 Band 5 (VNIR), Band 4 (Red) and Band 3 (Green).
+		green = bnd1;	red = bnd2;		redEdge1 = bnd3
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = (bnd3[k] - bnd2[k] - 0.2 * (bnd3[k] - bnd1[k])) * (bnd3[k] / bnd2[k])
+				t_redEdge1 = redEdge1[k]*i_tmax;	t_red = red[k]*i_tmax
+				t = (t_redEdge1 - t_red - 0.2 * (t_redEdge1 - green[k]*i_tmax)) * (t_redEdge1 / t_red)
 				(t >= threshold) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				img[k] = (bnd3[k] - bnd2[k] - 0.2 * (bnd3[k] - bnd1[k])) * (bnd3[k] / bnd2[k])
+				t_redEdge1 = redEdge1[k]*i_tmax;	t_red = red[k]*i_tmax
+				img[k] = (t_redEdge1 - t_red - 0.2 * (t_redEdge1 - green[k]*i_tmax)) * (t_redEdge1 / t_red)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "MSAVI")		# Modified soil adjusted vegetation index.
 		# nir + 0.5 - (0.5 * sqrt(pow(2.0 * nir + 1.0, 2) - 8.0 * (nir - (2.0 * red))))
+		red = bnd1;		nir = bnd2;
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = bnd2[k] + 0.5 - (0.5 * sqrt((2 * bnd2[k] + 1) ^2) - 8 * (bnd2[k] - (2 * bnd1[k])))
+				t_nir = nir[k]*i_tmax
+				t = t_nir + 0.5 - (0.5 * sqrt((2 * t_nir + 1) ^2) - 8 * (t_nir - (2 * red[k]*i_tmax)))
 				(t >= threshold) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				img[k] = bnd2[k] + 0.5 - (0.5 * sqrt((2 * bnd2[k] + 1) ^2) - 8 * (bnd2[k] - (2 * bnd1[k])))
+				t_nir = nir[k]*i_tmax
+				img[k] = t_nir + 0.5 - (0.5 * sqrt((2 * t_nir + 1) ^2) - 8 * (t_nir - (2 * red[k]*i_tmax)))
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
@@ -450,52 +482,61 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		# Normalized difference red edge index 2. Barnes et al 2000; (redEdge3 - redEdge1)/(redEdge3 + redEdge1)
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = (bnd2[k] - bnd1[k]) / (bnd1[k] + bnd2[k])
+				t1 = bnd1[k]*i_tmax;	t2 = bnd2[k]*i_tmax
+				t = (t2 - t1) / (t1 + t2)
 				(t >= threshold && t <= 1) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				t = (bnd2[k] - bnd1[k]) / (bnd1[k] + bnd2[k])
+				t1 = bnd1[k]*i_tmax;	t2 = bnd2[k]*i_tmax
+				t = (t2 - t1) / (t1 + t2)
 				(t >= -1 && t <= 1) && (img[k] = t)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "SATVI")		# Soil adjusted total vegetation index.
-		# ((swir2 - red) / (swir2 + red + L)) * (1.0 + L) - (swir3 / 2.0)
+		# ((swir1 - red) / (swir1 + red + L)) * (1.0 + L) - (swir2 / 2.0)
+		red = bnd1;		swir1 = bnd2;	swir2 = bnd3;
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = ((bnd2[k] - bnd1[k]) / (bnd2[k] + bnd1[k] + L)) * (1.0 + L) - (bnd3[k] / 2.0) 
+				t_red = red[k]*i_tmax;	t_swir1 = swir1[k]*i_tmax
+				t = ((t_swir1 - t_red) / (t_swir1 + t_red + L)) * (1.0 + L) - (swir2[k]*i_tmax / 2.0)
 				(t >= threshold) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				img[k] = ((bnd2[k] - bnd1[k]) / (bnd2[k] + bnd1[k] + L)) * (1.0 + L) - (bnd3[k] / 2.0) 
+				t_red = red[k]*i_tmax;	t_swir1 = swir1[k]*i_tmax
+				img[k] = ((t_swir1 - t_red) / (t_swir1 + t_red + L)) * (1.0 + L) - (swir2[k]*i_tmax / 2.0)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "SAVI")		# Soil adjusted vegetation index. Huete1988
 		# (nir - red) * (1.0 + L) / (nir + red + L);
+		red = bnd1;		nir = bnd2;
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = (bnd2[k] - bnd1[k]) * (1.0 + L) / (bnd2[k] - bnd1[k] + L) 
+				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
+				t = (t_nir - t_red) * (1.0 + L) / (t_nir - t_red + L)
 				(t >= threshold) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				img[k] = (bnd2[k] - bnd1[k]) * (1.0 + L) / (bnd2[k] - bnd1[k] + L) 
+				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
+				img[k] = (t_nir - t_red) * (1.0 + L) / (t_nir - t_red + L)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	elseif (index == "SLAVI")		# Soil Adjusted Vegetation Index Huete 1988.
 		# nir / (red + swir2)
+		red = bnd1;		nir = bnd2;		swir2 = bnd3
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
-				t = bnd2[k] / (bnd1[k] + bnd3[k]) 
+				t = nir[k]*i_tmax / (red[k]*i_tmax + swir2[k]*i_tmax)
 				(t >= threshold) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				img[k] = bnd2[k] / (bnd1[k] + bnd3[k]) 
+				img[k] = nir[k]*i_tmax / (red[k]*i_tmax + swir2[k]*i_tmax)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
