@@ -1,5 +1,5 @@
 const generic_docs = "
-- The first form, `evi(blue, red, nir; kw...)`, accepts inputs as matrices, or file names of the data bands.
+- The first form accepts inputs as matrices, or file names of the data bands.
 - The second form is more versatile but also more complex to describe.
   - `cube`: Is the file name of a 'cube', a multi-layered file normally created with the [`cutcube`](@ref) function.
      If this file was created with band descriptions one can use the `bands` or the `bandnames` options.
@@ -20,6 +20,8 @@ const generic_docs = "
   - `save`: Use `save=\"file_name.ext\"` to save the result in a disk file. File format is picked from file extension.
 
 If none of `bands`, `layers` or `bandnames` is provided, we use the default band names shown in the first form.
+
+See also https://www.indexdatabase.de/ for a list of indices and the appropriate band names per sensor.
 
 Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` or `classes` options are used.
 "
