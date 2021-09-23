@@ -16,17 +16,37 @@ end
 const KW = Dict{Symbol,Any}
 find_in_dict = GMT.find_in_dict
 
-const Lsat8_bd_desc = Dict(
-	1 => "Band 1 - Coastal aerosol [0.43-0.45]",
-	2 => "Band 2 - Blue [0.45-0.51]",
-	3 => "Band 3 - Green [0.53-0.59]",
-	4 => "Band 4 - Red [0.64-0.67]",
-	5 => "Band 5 - NIR [0.85-0.88]",
-	6 => "Band 6 - SWIR 1 [1.57-1.65]",
-	7 => "Band 7 - SWIR 2 [2.11-2.29]",
-	9 => "Band 9 - Cirrus [1.36-1.38]",
+const Lsat8_desc = Dict(
+	1  => "Band 1 - Coastal aerosol [0.43-0.45]",
+	2  => "Band 2 - Blue [0.45-0.51]",
+	3  => "Band 3 - Green [0.53-0.59]",
+	4  => "Band 4 - Red [0.64-0.67]",
+	5  => "Band 5 - NIR [0.85-0.88]",
+	6  => "Band 6 - SWIR 1 [1.57-1.65]",
+	7  => "Band 7 - SWIR 2 [2.11-2.29]",
+	9  => "Band 9 - Cirrus [1.36-1.38]",
 	10 => "Band 10 - Thermal IR 1 [10.6-11.19]",
 	11 => "Band 11 - Thermal IR 2 [11.50-12.51]")
+
+const Sentinel2_10m_desc = Dict(
+	2  => "Band 2 - Blue [0.490]",
+	3  => "Band 3 - Green [0.560]",
+	4  => "Band 4 - Red [0.665]",
+	8  => "Band 8 - NIR [0.842]")
+
+const Sentinel2_20m_desc = Dict(			# Common to both 20 & 60 m
+	1  => "Band 1 - Coastal aerosol [0.443]",	# Actually only available in 60 m.
+	2  => "Band 2 - Blue [0.490]",
+	3  => "Band 3 - Green [0.560]",
+	4  => "Band 4 - Red [0.665]",
+	5  => "Band 5 - Red Edge 1 [0.705]",
+	6  => "Band 6 - Red Edge 2 [0.740]",
+	7  => "Band 7 - Red Edge 3 [0.783]",
+	8  => "Band 8A - Red Edge 4 (NIR) [0.865]",	# ~Landsat8 Band 5
+	9  => "Band 9 - Water vapour [0.945]",
+	10 => "Band 10 - Cirrus [1.375]",		# ~Landsat8 Band 9
+	11 => "Band 11 - SWIR 1 [1.610]",		# ~Landsat8 Band 6
+	12 => "Band 12 - SWIR 2 [2.190]")		# ~Landsat8 Band 7
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -71,8 +91,10 @@ function truecolor(bndR, bndG, bndB)
 	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
 end
-function truecolor(cube::GMT.GMTimage{UInt16, 3}, layers::Vector{Int})
+truecolor(cube::GMT.GMTimage{UInt16, 3}, layers::Vector{Int}) = truecolor(cube, layers=layers)
+function truecolor(cube::GMT.GMTimage{UInt16, 3}; layers::Vector{Int}=Int[])
 	(length(layers) != 3) && error("For an RGB composition 'bands' must be a 3 elements array and not $(length(layers))")
+	(cube.layout[3] != 'B') && error("For an RGB composition the image object must be Band interleaved and not $(cube.layout)")
 	img = Array{UInt8, 3}(undef, size(cube,1), size(cube,2), 3)
 	layers = find_layers(cube, layers, 3)
 	_ = mat2img(@view(cube[:,:,layers[1]]), stretch=true, img8=view(img,:,:,1), scale_only=1)
@@ -148,7 +170,8 @@ function find_layers(fname::String; bands::Vector{Int}=Int[], layers::Vector{Int
 	# 'bands' search for "Band bands[k]"
 	# 'bandnames' search the bands description for the first layer that contains bandnames[k]
 	# Returns the numeric layers (1-based) corresponding to the search criteria and the bands description
-	(!alllayers && isempty(bands) && isempty(bandnames)) && error("Must use either the 'bands' OR the 'bandnames' option.")
+	(!alllayers && isempty(bands) && isempty(layers) && isempty(bandnames)) &&
+		error("Must use either the 'bands' OR the 'bandnames' option.")
 	GMT.ressurectGDAL()		# Yep, shit, sometimes its needed.
 	ds = GMT.Gdal.unsafe_read(fname)
 	nbands = GMT.Gdal.nraster(ds)
@@ -199,21 +222,19 @@ Returns a string vector.
 """
 reportbands(in, layer::Int) = reportbands(in, layers=[layer])
 function reportbands(in; layers::Vector{Int}=Int[])
+	(!isa(in, GMT.GMTimage) && !isa(in, String)) && error("Bad input. Must be a GMTimage or a file name. Not $(typeof(in))")
 	if (isa(in, GMT.GMTimage))
 		isempty(in.names) && (println("This image object does not have a `names` assigned field"); return nothing)
-		isempty(layers) && return in.names		# Return them all
 		return (isempty(layers)) ? in.names : in.names[layers]
-	elseif (isa(in, String))
+	else
 		layers, desc = find_layers(in, layers=layers, alllayers=isempty(layers))
 		return desc[layers]
-	else
-		error("Bad input argument. Must be a GMTimage or a file name. Not $(typeof(in))")
 	end
 end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    cutcube(names=String[], bands=Int[], template="", region=nothing, extension=".TIF", description=String[], save="")
+    cutcube(names=String[], bands=Int[], template="", region=nothing, extension=".TIF", description=String[], , sentinel2=0, save="")
 
 Cut a 3D cube out of a Landsat/Sentinel scene within a subregion `region` and a selection of bands.
 
@@ -231,6 +252,9 @@ Cut a 3D cube out of a Landsat/Sentinel scene within a subregion `region` and a 
 - `description`: A vector of strings (as many as bands) with a description for each band. If not provided and
            the file is recognized as a Landasat 8, band description is added automatically, otherwise
            we build one with the bands file names. This info will saved if data is written to a file.
+- `sentinel2`: ESA is just unconsistent and names change with time and band numbers can have character (e.g. 8A)
+           hence we need help to recognize Sentinel files so the known description can be assigned.
+           Use `sentinel=10`, or `=20` or `=60` to indicate Sentinel files at those resolutions.
 - `save`:  The file name where to save the output. If not provided, a GMTimage is returned.
 
 Return: `nothing` if the result is written in file or a GMTimage otherwise.
@@ -246,7 +270,7 @@ cube = cutcube(bands=[2,3,4], template=temp, region=[479670,492720,4282230,42945
 cutcube(bands=[2,3,4], template=temp, region="479670/492720/4282230/4294500", save="landsat_cube.tif")
 ```
 """
-function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], template::String="", region=nothing, extension::String=".TIF", description::Vector{String}=String[], save::String="")
+function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], template::String="", region=nothing, extension::String=".TIF", description::Vector{String}=String[], save::String="", sentinel2::Int=0)
 	(region === nothing) && error("The `region` option cannot be empty.")
 	if (isempty(names))
 		(isempty(bands) || template == "") && error("When band file `names` are not provided, MUST indicate `bands` AND `template`")
@@ -273,7 +297,7 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 	startswith(_region, "-R") && (_region = _region[3:end])		# Tolerate a region that starts with "-R"
 	(length(findall("/", _region)) != 3) && error("Badly formed region string: $_region")
 
-	desc = assign_description(names, description)
+	desc = assign_description(names, description, sentinel2)
 	cube = grdcut(names[1], R=_region)
 	mat = cube.image
 	for k = 2:length(bands)
@@ -285,12 +309,12 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 	return (save != "") ? nothing : cube
 end
 
-function assign_description(names::Vector{String}, description::Vector{String})
+function assign_description(names::Vector{String}, description::Vector{String}, sentinel2::Int=0)
 	# Create a description for each band. If 'description', the cutcube() kwarg, is provided we use it as is.
 	# Next we try to find if 'names' indicate a Landsat8 origin and if yes we use the known names & frequencies
 	# Otherwise we use the file names as descriptors.
 	(!isempty(description) && length(names) != length(description)) &&
-		error("'Description' and 'names' vectors must have the same length")
+		error("'description' and 'names' vectors must have the same length")
 	desc = (!isempty(description)) ? description : Vector{String}(undef, length(names))
 
 	t = splitext(splitdir(names[1])[2])[1]
@@ -299,7 +323,15 @@ function assign_description(names::Vector{String}, description::Vector{String})
 			t = splitext(splitdir(names[k])[2])[1]
 			ind = findfirst("_B", t)
 			bnd = parse(Int, t[ind[end]+1:end])
-			desc[k] = Lsat8_bd_desc[bnd]
+			desc[k] = Lsat8_desc[bnd]
+		end
+	elseif (sentinel2 == 10 || sentinel2 == 20 || sentinel2 == 60)
+		for k = 1:length(names)
+			t = splitdir(names[k])[2]
+			ind = findfirst("_B", t)
+			bnd = tryparse(Int, t[ind[end]+1:ind[end]+2])
+			(bnd === nothing && t[ind[end]+1:ind[end]+2] == "8A") && (bnd = 8)	# ESA is crazzy. Fck character
+			desc[k] = (sentinel2 == 10) ? Sentinel2_10m_desc[bnd] : Sentinel2_20m_desc[bnd]	# 20m applyies also for 60m
 		end
 	else
 		if (isempty(description))
@@ -377,19 +409,10 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 function helper1_sats(fname::String, band_layer::Int)
-	I::GMT.GMTimage{UInt16, 2} = (band_layer == 0) ? gmtread(fname) : gmtread(fname, layer=band_layer)
+	I::GMT.GMTimage{UInt16, 2} = (band_layer == 0) ? gmtread(fname) : gmtread(fname, layer=band_layer, layout="TRB")
 	indNaN = isnodata(I)
 	o = Matrix{Float32}(undef, size(I))
 	return I, indNaN, o
-end
-
-function isnodata(array::AbstractArray, val=0)
-	nrows, ncols = size(array,1), size(array,2)
-	indNaN = fill(false, nrows, ncols)
-	@inbounds Threads.@threads for k = 1:nrows * ncols	# 5x faster than: indNaN = (I.image .== 0)
-		(array[k] == val) && (indNaN[k] = true)
-	end
-	indNaN
 end
 
 function parse_lsat8_file(fname::String; band::Int=0, mtl::String="")
@@ -400,6 +423,7 @@ function parse_lsat8_file(fname::String; band::Int=0, mtl::String="")
 	# This band number will be fetch from the band file name (full Landsat8 product name), or must be
 	# transmitted via 'band' option when reading a cube file.
 	(band < 0 || band > 11) && throw(ArgumentError("Bad Landsat 8 band number $band"))		# Must still accept 0 here
+	GMT.ressurectGDAL()				# Another black-hole plug attempt.
 	ds = GMT.Gdal.unsafe_read(fname)
 	nbands = GMT.Gdal.nraster(ds)
 	meta = GMT.Gdal.GDALGetMetadata(ds.ptr, C_NULL)
