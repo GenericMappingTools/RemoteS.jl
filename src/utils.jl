@@ -141,6 +141,7 @@ function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers:
 	if (maximum(list) < 200)		# The list of bands to pass to the caling fun
 		(maximum(list) > size(cube,3)) && error("Not enough bands to satisfy the bands list request.")
 		bands = list
+	#=
 	elseif (!isempty(cube.v))		# Must match the wavelength in `list` with those of cube.v
 		bands, n = zeros(Int, length(list)), 0
 		for w in list
@@ -152,6 +153,7 @@ function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers:
 		end
 		(n != length(list)) && error("Some of the wavelegth in $(list) are not present in the `cube.v`")
 		bands
+	=#
 	else
 		error("The `cube` object does not have a frequencies (`v` coordinates) vector as required here.")
 	end
@@ -196,12 +198,12 @@ helper_find_layers(desc::Vector{String}, band_names::String) = helper_find_layer
 function helper_find_layers(desc::Vector{String}, band_names::Vector{String})::Vector{Int}
 	# Note, 'desc' is supposed to be in lowercase already.
 	bnd_names = lowercase.(band_names)
-	bands, n = zeros(Int, length(bnd_names)), 0
+	layers, n = zeros(Int, length(bnd_names)), 0
 	for bnd_name in bnd_names
-		((ind = findfirst(contains.(desc, bnd_name))) !== nothing) && (bands[n += 1] = ind)
+		((ind = findfirst(contains.(desc, bnd_name))) !== nothing) && (layers[n += 1] = ind)
 	end
 	(n != length(bnd_names)) && error("All or some of the names in $(band_names) are not present in the `cube` names/description.\n\tUse the `reportbands()` function to check the bands description.")
-	bands
+	layers
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -211,7 +213,7 @@ or
 
     reportbands(in, layer;)
 
-Report the layers description of the `in` input argument. This can be a GMTimage or a file name (a String) of 
+Report the Bands description of the `in` input argument. This can be a GMTimage or a file name (a String) of 
 a 'cube' file. Normally one made with the `cutcube` function. When the use conditions of this function are not met,
 either a warning or an error message (if too deep to be caught as a warning) will be issued.
 
@@ -234,7 +236,7 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    cutcube(names=String[], bands=Int[], template="", region=nothing, extension=".TIF", description=String[], , sentinel2=0, save="")
+    cutcube(names=String[], bands=Int[], template="", region=nothing, extension=".TIF", description=String[], mtl="", sentinel2=0, save="")
 
 Cut a 3D cube out of a Landsat/Sentinel scene within a subregion `region` and a selection of bands.
 
@@ -252,6 +254,8 @@ Cut a 3D cube out of a Landsat/Sentinel scene within a subregion `region` and a 
 - `description`: A vector of strings (as many as bands) with a description for each band. If not provided and
            the file is recognized as a Landasat 8, band description is added automatically, otherwise
            we build one with the bands file names. This info will saved if data is written to a file.
+- `mtl`:   If reading from Landsat and the MTL file is not automatically found (you get an error) use this
+           option to pass the full name of the MTL file.
 - `sentinel2`: ESA is just unconsistent and names change with time and band numbers can have character (e.g. 8A)
            hence we need help to recognize Sentinel files so the known description can be assigned.
            Use `sentinel=10`, or `=20` or `=60` to indicate Sentinel files at those resolutions.
@@ -270,7 +274,7 @@ cube = cutcube(bands=[2,3,4], template=temp, region=[479670,492720,4282230,42945
 cutcube(bands=[2,3,4], template=temp, region="479670/492720/4282230/4294500", save="landsat_cube.tif")
 ```
 """
-function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], template::String="", region=nothing, extension::String=".TIF", description::Vector{String}=String[], save::String="", sentinel2::Int=0)
+function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], template::String="", region=nothing, extension::String=".TIF", description::Vector{String}=String[], save::String="", sentinel2::Int=0, mtl::String="")
 	(region === nothing) && error("The `region` option cannot be empty.")
 	if (isempty(names))
 		(isempty(bands) || template == "") && error("When band file `names` are not provided, MUST indicate `bands` AND `template`")
@@ -288,7 +292,7 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 	for name in names
 		!isfile(name) && error("File name $name does not exist. Must stop here.")
 	end
-	MTL = read_mtl(names[1], get_full=true)
+	MTL = read_mtl(names[1], mtl, get_full=true)
 	(MTL !== nothing) && (MTL = ["MTL=" * join(MTL, "\n")])
 
 	# Little parsing of the -R string but does not test if W < E & S < N
@@ -361,24 +365,23 @@ the MTL file is not found.
 or a string with MTL contents (or nothing if MTL file is not found)
 """
 function read_mtl(fname::String, mtl::String=""; get_full::Bool=false)
-	_fname = splitext(fname)[1]
-	((ind = findfirst("_B", fname)) === nothing && !get_full) &&
+	pato,_fname = splitdir(fname)
+	((ind = findfirst("_B", _fname)) === nothing && !get_full) &&
 		error("This $(fname) is not a valid Landsat8 band file name or of a Landsat 8 cube file.")
 	(ind === nothing) && return nothing		# Only happens when get_full = true and name is no Landsat
 	if (mtl == "")
-		mtl = fname[1:ind[1]] * "MTL.txt"
+		mtl = join(pato, _fname[1:ind[1]] * "MTL.txt")
 		if (!isfile(mtl))
-			pato = splitdir(_fname)[1]
 			lst = filter(x -> endswith(x, "MTL.txt"), readdir((pato == "") ? "." : pato))
 			if (length(lst) == 1 && startswith(lst[1], _fname[1:16]))
 				mtl = joinpath(pato, lst[1])
 				(!isfile(mtl) && get_full) && return nothing		# Not fatal error in this case
-				!isfile(mtl) && error("MTL file was not transmitted in input and I couldn't find it next the band file.")
+				!isfile(mtl) && (@warn("MTL file was not transmitted in input and I couldn't find it."); return nothing)
 			end
 		end
 	end
 
-	(!get_full) && (band = parse(Int, _fname[ind[1]+2:end]))
+	(!get_full) && (__fname = splitext(_fname)[1];	band = parse(Int, __fname[ind[1]+2:end]))
 	f = open(mtl);	lines = readlines(f);	close(f)
 	return (get_full) ? lines : parse_mtl(lines, band)
 end
@@ -415,14 +418,14 @@ function helper1_sats(fname::String, band_layer::Int)
 	return I, indNaN, o
 end
 
-function parse_lsat8_file(fname::String; band::Int=0, mtl::String="")
+function parse_lsat8_file(fname::String; band::Int=0, layer::Int=0, mtl::String="")
 	# See if 'fname' is of a plain Landsat8 .tif file or of a cube created with cutcube().
 	# Depending on the case find the MTL info from file or from the cube's Metadata. Former case
 	# still accepts that the MTL file name be transmitted via the 'mtl' option.
 	# If no errors so far, parse the MTL and extract the parameters concerning the wished 'band'.
 	# This band number will be fetch from the band file name (full Landsat8 product name), or must be
 	# transmitted via 'band' option when reading a cube file.
-	(band < 0 || band > 11) && throw(ArgumentError("Bad Landsat 8 band number $band"))		# Must still accept 0 here
+	# In alternative to 'band' we can use 'layer' and fetch the Band number that is stored in that layer.
 	GMT.ressurectGDAL()				# Another black-hole plug attempt.
 	ds = GMT.Gdal.unsafe_read(fname)
 	nbands = GMT.Gdal.nraster(ds)
@@ -436,7 +439,12 @@ function parse_lsat8_file(fname::String; band::Int=0, mtl::String="")
 	GMT.Gdal.GDALClose(ds.ptr)
 
 	if (nbands > 1)
-		(band == 0) && error("The `band` option must contain the wished Landsat 8 band number. Use `band=N` to set it.")
+		if (0 < layer < 12)			# Try to find which Band is at layer 'layer'
+			((_band = tryparse(Int, split(desc[layer])[2])) === nothing) && @warn("Failed to find Band with description in layer $layout")
+			(_band !== nothing) && (band = _band)
+		end
+		(band < 1) && error("The `band` option must contain the wished Landsat 8 band number. Use `band=N` to set it.")
+		(band > 11) && throw(ArgumentError("Bad Landsat 8 band number $band"))
 		MTL = ((ind = findfirst(startswith.(meta, "MTL=GROUP ="))) !== nothing) ? meta[ind][5:end] :
 			error("Data in a cube (> one layer) must contain the MTL info in Metadata and this one does not.")
 
@@ -450,67 +458,95 @@ function parse_lsat8_file(fname::String; band::Int=0, mtl::String="")
 end
 
 # ----------------------------------------------------------------------------------------------------------
+function helper_dns(fname::String, band::Int, bandname::String, bandnames::String, mtl::String)
+	# Helper function for the dn2temperature, dn2radiance, dn2... functions
+	(band == 0 && bandname == "" && bandnames == "") && error("No information provided on what Band to process.")
+	(bandname == "" && bandnames != "") && (bandname = bandnames)	# Accept singular and plural name
+	if (bandname != "")
+		layers, = find_layers(fname, bandnames=[bandname])
+		band_layer, pars = parse_lsat8_file(fname, layer=layers[1], mtl=mtl)
+		(band_layer != layers[1]) && error("Internal error. $band_layer and $(layers[1]) should be equal.")
+	else
+		band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
+	end
+	band_layer, pars
+end
+
+const dns_doc = "
+- `fname`: The name of either a ``LANDSAT_PRODUCT_ID`` geotiff band, or the name of a cube file created with
+  the `cutcube` function. In the first case, if the companion ``...MTL.txt`` file is not in the same directory
+  as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
+  to use one of the following two options.
+- `band`: _cubes_ created with [`cutcube`](@ref) assign descriptions starting with \"Band 1 ...\" an so on
+  the other bands. So when `band` is used we search for the band named \"Band N\", where N = `band`.
+- `bandname`: When we know the common designation of a band, for example \"Green\", or any part of a band
+  description, for example \"NIR\", we can use that info to create a `bandname` string that will be
+  matched against the cube's bands descriptions. We can use the `reportbands` function to see the bands description.
+
+Returns a Float32 GMTgrid
+"
+
+# ----------------------------------------------------------------------------------------------------------
 """
     R = dn2temperature(fname::String; band::Int=0, mtl::String="")
 
-Returns a GMTgrid with the brigthness temperature of Landasat8 termal band (10 or 11)
+Computes the brigthness temperature of Landasat8 termal band (10 or 11)
 
-Input can be either a file name of a LANDSAT_PRODUCT_ID geotiff band, or the name of a cube file created
-with the `cutcube` function. In the first case, if the companion ...MTL.txt file is not in the same directory
-as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
-to use the `band=N` where N is the band number with the data to convert.
+$dns_doc
+
+# Example:
+Compute the brightness temperature of Band 10 stored in a `cube`
+
+```
+T = dn2temperature(cube, band=10)
+```
 """
 function dn2temperature(fname::String; band::Int=0, mtl::String="")
 	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
 	(pars.band < 10) && throw(ArgumentError("Brightness temperature is only for bands 10 or 11. Not this one: $(pars.band)"))
 	I, indNaN, o = helper1_sats(fname, band_layer)
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
-		o[k] = pars.K2 / (log(pars.K1 / (I.image[k] * pars.rad_mul + pars.rad_add) + 1.0)) - 273.15
+		o[k] = indNaN[k] ? NaN32 : pars.K2 / (log(pars.K1 / (I.image[k] * pars.rad_mul + pars.rad_add) + 1.0)) - 273.15
 	end
-	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)  indNaN[k] && (o[k] = NaN)  end
 	mat2grid(o, I)
 end
 
-#=
-function dn2temperature(cube::GMT.GMTimage{UInt16, 3}, layer::Int=0, band::Int=0)
-	if (layer == 0)
-		((ind = findfirst(startswith.(cube.names, "Band $band"))) === nothing) && error("Band $band not found")
-		layer = ind
-	end
-end
-=#
-
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = dn2radiance(fname::String; band::Int=0, mtl::String="")
+    R = dn2radiance(fname::String, [band::Int, bandname::String, mtl::String])
 
-Returns a GMTgrid with the radiance at TopOfAtmosphere for the Landsat8 band file `fname`
+Computes the radiance at TopOfAtmosphere of a Landsat 8 file
 
-Input can be either a file name of a LANDSAT_PRODUCT_ID geotiff band, or the name of a cube file created
-with the `cutcube` function. In the first case, if the companion ...MTL.txt file is not in the same directory
-as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
-to use the `band=N` where N is the band number with the data to convert.
+$dns_doc
+
+# Example:
+Compute the radiance TOA of Band 2 file.
+```
+R = dn2temperature("LC08_L1TP_204033_20210525_20210529_02_T1_B2.TIF")
+```
 """
-function dn2radiance(fname::String; band::Int=0, mtl::String="")
-	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
+function dn2radiance(fname::String; band::Int=0, bandname::String="", bandnames::String="", mtl::String="")
+	band_layer, pars = helper_dns(fname, band, bandname, bandnames, mtl)
 	I, indNaN, o = helper1_sats(fname, band_layer)
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
-		o[k] = I.image[k] * pars.rad_mul + pars.rad_add
+		o[k] = indNaN[k] ? NaN32 : I.image[k] * pars.rad_mul + pars.rad_add
 	end
-	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)  indNaN[k] && (o[k] = NaN)  end
 	mat2grid(o, I)
 end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = dn2reflectance(fname::String; band::Int=0, mtl::String="")
+    R = dn2reflectance(fname::String, [band::Int, bandname::String, mtl::String])
 
-Returns a GMTgrid with the TopOfAtmosphere planetary reflectance for the Landsat8 band file `fname`
+Computes the TopOfAtmosphere planetary reflectance of a Landsat8 file
 
-Input can be either a file name of a LANDSAT_PRODUCT_ID geotiff band, or the name of a cube file created
-with the `cutcube` function. In the first case, if the companion ...MTL.txt file is not in the same directory
-as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
-to use the `band=N` where N is the band number with the data to convert.
+$dns_doc
+
+# Example:
+Compute the reflectance TOA of Red Band stored in a `cube`
+```
+R = dn2reflectance(cube, bandname="red")
+```
 """
 function dn2reflectance(fname::String; band::Int=0, mtl::String="")
 	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
@@ -520,24 +556,18 @@ function dn2reflectance(fname::String; band::Int=0, mtl::String="")
 	fact_x = pars.reflect_mul / s_elev
 	fact_a = pars.reflect_add / s_elev
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
-		o[k] = I.image[k] * fact_x + fact_a
+		o[k] = indNaN[k] ? NaN32 : I.image[k] * fact_x + fact_a
 	end
-	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)  indNaN[k] && (o[k] = NaN)  end
 	mat2grid(o, I)
 end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = reflectance_surf(fname::String; band::Int=0, mtl::String="")
+    R = reflectance_surf(fname::String, [band::Int, bandname::String, mtl::String])
 
-Compute the radiance-at-surface of Landsat8 band using the COST model.
+Computes the radiance-at-surface of Landsat8 band using the COST model.
 
-Returns a Float32 GMTgrid type
-
-Input can be either a file name of a LANDSAT_PRODUCT_ID geotiff band, or the name of a cube file created
-with the `cutcube` function. In the first case, if the companion ...MTL.txt file is not in the same directory
-as `fname` one can still pass it via the `mtl=path-to-MTL-file` option. In the second case it is mandatory
-to use the `band=N` where N is the band number with the data to convert.
+$dns_doc
 """
 function reflectance_surf(fname::String; band::Int=0, mtl::String="")
 	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
@@ -566,7 +596,7 @@ function reflectance_surf(fname::String; band::Int=0, mtl::String="")
 		if     (o[k] < 0) o[k] = 0
 		elseif (o[k] > 1) o[k] = 1
 		end
-		indNaN[k] && (o[k] = NaN)
+		indNaN[k] && (o[k] = NaN32)
 	end
 	mat2grid(o, I)
 end
