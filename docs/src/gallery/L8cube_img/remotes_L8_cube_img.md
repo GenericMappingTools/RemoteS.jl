@@ -25,7 +25,7 @@ reportbands("c:/v/LC08_L1TP_20210525_02_cube.tiff")
  "Band 10 - Thermal IR 1 [10.6-11.19]"
 ```
 
-So to start our exploration the best is to generate a true color image. The ```truecolor``` function knows how to do that automatically.
+So to start our exploration the best is to generate a true color image. The ```truecolor``` function knows how to do that automatically including the histogram contrast stretch.
 
 ```julia
 Irgb = truecolor("c:/v/LC08_L1TP_20210525_02_cube.tiff");
@@ -33,7 +33,7 @@ imshow(Irgb)
 ```
 
 ```@raw html
-<img src="LC08_L1TP_20210525_02_RGB.png" width="500" class="center"/>
+<img src="../LC08_L1TP_20210525_02_RGB.png" width="500" class="center"/>
 ```
 
 And we can compute the brightness temperature in Celsius at the Top of Atmosphere (TOA) from Band 10.
@@ -44,7 +44,7 @@ imshow(T, dpi=150, colorbar=true)
 ```
 
 ```@raw html
-<img src="LC08_L1TP_20210525_02_Tbright.png" width="500" class="center"/>
+<img src="../LC08_L1TP_20210525_02_Tbright.png" width="500" class="center"/>
 ```
 
 Or the Radiance TOA for the Blue band.
@@ -55,7 +55,7 @@ imshow(Btoa, dpi=150, color=:gray)
 ```
 
 ```@raw html
-<img src="LC08_L1TP_20210525_02_Gtoa.png" width="500" class="center"/>
+<img src="../LC08_L1TP_20210525_02_Gtoa.png" width="500" class="center"/>
 ```
 
 Hmmm, very dark. Let's look at its histogram.
@@ -65,7 +65,7 @@ histogram(Gtoa, show=1)
 ```
 
 ```@raw html
-<img src="LC08_L1TP_20210525_02_Gtoa_histo.png" width="350" class="center"/>
+<img src="../LC08_L1TP_20210525_02_Gtoa_histo.png" width="350" class="center"/>
 ```
 
 Yes, the data is very concentraded in the low numbers. We will need to apply a contrast stretch.
