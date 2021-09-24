@@ -3,7 +3,7 @@ const generic_docs = "
 - The second form is more versatile but also more complex to describe.
   - `cube`: Is the file name of a 'cube', a multi-layered file normally created with the [`cutcube`](@ref) function.
      If this file was created with band descriptions one can use the `bands` or the `bandnames` options.
-  - `bands`: _cubes_ created with [`cutcube`](@ref) assign descriptions starting with \"Band 1 ...\" an so on forth
+  - `bands`: _cubes_ created with [`cutcube`](@ref) assign descriptions starting with \"Band 1 ...\" an so on
     the other bands. So when `bands` is used we search for bands named \"Band band[k]\", where band[k] loops
     over all elements of the `bands` vector. WARNING: the elements order in the vector must be sorted in increasing
     wavelength numbers, _i.e._ like the example for the first form.
