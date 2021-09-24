@@ -2,10 +2,14 @@ using Documenter, RemoteS
 
 makedocs(
     modules = [RemoteS],
-    format = Documenter.HTML(; prettyurls = get(ENV, "CI", nothing) == "true"),
+    format = Documenter.HTML(; prettyurls = get(ENV, "CI", nothing) == "true", assets = ["assets/custom.css"]),
     authors = "Joaquim Luis",
     sitename = "RemoteS.jl",
-    pages = Any["Index"                    => "index.md"],
+    pages = Any[
+        "Gallery"                  => [
+            "Landsat 8 imgs"       => "gallery/L8cube_img/remotes_L8_cube_img.md",
+        ],
+        "Index"                    => "index.md"],
 
     # strict = true,
     # clean = true,
@@ -14,7 +18,6 @@ makedocs(
 
 deploydocs(
     repo = "github.com/GenericMappingTools/RemoteS.jl.git",
-    #repo = "https://www.generic-mapping-tools.org/RemoteS.jl",
 	target  = "build",
     push_preview = true
 )
