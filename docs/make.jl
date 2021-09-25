@@ -8,6 +8,7 @@ makedocs(
     pages = Any[
         "Gallery"                  => [
             "Landsat 8 imgs"       => "gallery/L8cube_img/remotes_L8_cube_img.md",
+            "Landsat 8 NDVI"       => "gallery/L8cube_ndvi/remotes_L8_NDVI.md",
         ],
         "Index"                    => "index.md"],
 

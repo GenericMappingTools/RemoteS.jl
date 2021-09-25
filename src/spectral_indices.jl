@@ -16,7 +16,8 @@ const generic_docs = "
   - `threshold`: When a threshold is provided we return a GMTgrid where `vals[ij] < threshold = NaN`
   - `classes`: is a vector with up to 3 elements (class separators) and we return a  UInt8 GMTimage with the
     indices categorized into vals[ij] > classes[1] = 1; vals[ij] > classes[2] = 2; vals[ij] > classes[3] = 3 and 0 otherwise.
-  - `mask`: Used together with `threshold` outputs a UInt8 GMTimage mask with `vals[ij] > threshold = 255` and 0 otherwise
+  - `mask`: Used together with `threshold` outputs a UInt8 GMTimage mask with `vals[ij] >= threshold = 255` and 0 otherwise
+     If `mask=-1` (or any other negative number) we compute instead a mask where `vals[ij] < threshold = 255` and 0 otherwise
   - `save`: Use `save=\"file_name.ext\"` to save the result in a disk file. File format is picked from file extension.
 
 If none of `bands`, `layers` or `bandnames` is provided, we use the default band names shown in the first form.
@@ -314,15 +315,20 @@ slavi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnam
 function helper_sp_indices(kwargs...)
 	# Helper function that is called by two different sp_indices methods
 	d = KW(kwargs)
-	mask = (haskey(d, :mask))
-	threshold = find_in_dict(d, [:threshold])[1]
+	mask = ((val = find_in_dict(d, [:mask], false)[1]) !== nothing)
+	rev_mask = (mask && val < 0) ? true : false		# See if we want to reverse the mask
+	threshold = find_in_dict(d, [:threshold], false)[1]
 	classes = (threshold === nothing) ? find_in_dict(d, [:classes])[1] : nothing
 	(mask && threshold === nothing) && error("The `mask` option requires the `threshold=x` option")
 	(classes !== nothing && length(classes) > 3) && (classes = classes[1:3]; @warn("`classes` maximum elements is 3. Clipping the others"))
-	save_name::String = ((val = find_in_dict(d, [:save])[1]) !== nothing) ? val : ""
+	save_name::String = ((val = find_in_dict(d, [:save], false)[1]) !== nothing) ? val : ""
 	dbg = (find_in_dict(d, [:Vd :dbg])[1] !== nothing)
-	(length(d) > 0) && println("Warning: the following options were not consumed in sp_indices => ", keys(d))
-	return mask, classes, threshold, save_name, dbg
+	dd = d		# Copy to report unused keys (errors) but can't do it in 'd' because this function may be called twice
+	(haskey(dd, :mask))      && delete!(dd, :mask)
+	(haskey(dd, :classes))   && delete!(dd, :classes)
+	(haskey(dd, :threshold)) && delete!(dd, :threshold)
+	(length(d) > 0) && println("Warning: the following options were not consumed in sp_indices => ", keys(dd))
+	return mask, rev_mask, classes, threshold, save_name, dbg
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -343,7 +349,7 @@ end
 
 function sp_indices(cube::GMT.GMTimage{UInt16, 3}, bands::Vector{Int}; index::String="", kw...)
 	# This method recieves the cube and a vector with the bands list and calls the worker with @view
-	mask, classes, _, save_name, dbg = helper_sp_indices(kw...)	# Do this first because if it errors no point in continuing
+	mask, _, classes, _, save_name, dbg = helper_sp_indices(kw...)	# Do this first because if it errors no point in continuing
 	(dbg) && println(cube.names)
 	if (length(bands) == 2)
 		o = sp_indices(@view(cube[:,:,bands[1]]), @view(cube[:,:,bands[2]]); index=index, kw...)
@@ -365,11 +371,12 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	# This is the method who does the real work.
 	(index == "") && error("Must select which index to compute")
 	@assert size(bnd1) == size(bnd2)
-	mask, classes, threshold, save_name, = helper_sp_indices(kwargs...)
+	mask, rev_mask, classes, threshold, = helper_sp_indices(kwargs...)
 	img = (mask || classes !== nothing) ? fill(UInt8(0), size(bnd1)) : fill(NaN32, size(bnd1))
 
+	if (rev_mask) fcomp = <	else  fcomp = >  end 	# Which one to use when computing masks
 	mn = size(bnd1,1) * size(bnd1,2)
-	i_tmax = 1. / typemax(eltype(bnd1))
+	i_tmax = (eltype(bnd1) <: Integer) ? 1. / typemax(eltype(bnd1)) : 1.0	# Floats go unchanged
 	C1, C2, G, L, Levi = 6.0, 7.5, 2.5, 0.5, 1.0
 	if (index == "CLG" || index == "CLRE")
 		# Green cholorphyl index. Wu et al 2012		CLG               (redEdge3)/(green)-1
@@ -377,7 +384,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
 				t = bnd2[k] / bnd1[k] - 1
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -395,7 +402,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			@inbounds Threads.@threads for k = 1:mn
 				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
 				t = G * ((t_nir - t_red) / (t_nir + C1 * t_red - _C2 * blue[k] + Levi))
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -411,7 +418,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			@inbounds Threads.@threads for k = 1:mn
 				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
 				t = G * (t_nir - t_red) / (t_red + 2.4 * t_nir)
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -428,7 +435,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			@inbounds Threads.@threads for k = 1:mn
 				t_redEdge1 = redEdge1[k]*i_tmax
 				t = (redEdge2[k]*i_tmax - t_redEdge1) / (t_redEdge1 - red[k]*i_tmax)
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -445,7 +452,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			@inbounds Threads.@threads for k = 1:mn
 				t_redEdge1 = redEdge1[k]*i_tmax;	t_red = red[k]*i_tmax
 				t = (t_redEdge1 - t_red - 0.2 * (t_redEdge1 - green[k]*i_tmax)) * (t_redEdge1 / t_red)
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -461,7 +468,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			@inbounds Threads.@threads for k = 1:mn
 				t_nir = nir[k]*i_tmax
 				t = t_nir + 0.5 - (0.5 * sqrt((2 * t_nir + 1) ^2) - 8 * (t_nir - (2 * red[k]*i_tmax)))
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -484,7 +491,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			@inbounds Threads.@threads for k = 1:mn
 				t1 = bnd1[k]*i_tmax;	t2 = bnd2[k]*i_tmax
 				t = (t2 - t1) / (t1 + t2)
-				(t >= threshold && t <= 1) && (img[k] = 255)
+				(fcomp(t, threshold) && t <= 1) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -501,7 +508,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			@inbounds Threads.@threads for k = 1:mn
 				t_red = red[k]*i_tmax;	t_swir1 = swir1[k]*i_tmax
 				t = ((t_swir1 - t_red) / (t_swir1 + t_red + L)) * (1.0 + L) - (swir2[k]*i_tmax / 2.0)
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -517,7 +524,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			@inbounds Threads.@threads for k = 1:mn
 				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
 				t = (t_nir - t_red) * (1.0 + L) / (t_nir - t_red + L)
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -532,7 +539,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		if (mask)
 			@inbounds Threads.@threads for k = 1:mn
 				t = nir[k]*i_tmax / (red[k]*i_tmax + swir2[k]*i_tmax)
-				(t >= threshold) && (img[k] = 255)
+				(fcomp(t, threshold)) && (img[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
