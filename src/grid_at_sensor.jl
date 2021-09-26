@@ -5,26 +5,26 @@ Read one of those netCDF files that are not regular grids but have instead the c
 LONGITUDE abd LATITUDE arrays. MODIS L2 files are a good example of this. Data in theses files are
 not layed down on a regular grid and we must interpolate to get one. Normally the lon and lat arrays
 are called 'longitude' and 'latitude' and these it's what is seek for by default. But files exist
-that pretend to comply to CF but use other names. In this case, use the kwargs 'xarray' & 'yarray'
-to pass in the variable names. For example: xarray="XLONG", yarray="XLAT"
+that pretend to comply to CF but use other names. In this case, use the kwargs `xarray` & `yarray`
+to pass in the variable names. For example: `xarray="XLONG"`, `yarray="XLAT"`
 The other fundamental info to pass in is the name of the array to be read/interpolated. We do that
-via the SDS_NAME arg.
+via the `sds_name` arg.
 
 In simpler cases the variable to be interpolated lays down on a 2D array but it is also possible that
 it is stored in a 3D array. If that is the case, use the keyword 'band' to select a band (ex: 'band=2')
 Bands are numbered from 1.
 
 The interpolation is done so far with 'nearneighbor'. Both the region (-R) and increment (-I) are estimated
-from data but they can be set with 'region' and 'inc' kwargs as well.
+from data but they can be set with `region` and `inc` kwargs as well.
 For MODIS data we can select the quality flag to filter by data quality. By default the best quality (=0) is
-used, but one can select another with the quality=val kwarg. Positive 'val' values select data of quality
+used, but one can select another with the `quality=val` kwarg. Positive 'val' values select data of quality
 <= quality, whilst negative 'val' values select only data with quality >= abs(val). This allows for example
 to extract only the cloud coverage.
 
 If instead of calculating a grid (returned as a GMTgrid type) user wants the x,y,z data intself, use the
-keywords 'dataset', or 'outxyz' and the output will be in a GMTdataset (i.e. use 'dataset=true').
+keywords `dataset`, or `outxyz` and the output will be in a GMTdataset (i.e. use `dataset=true`).
 
-To inquire just the list of available arrays use 'list=true' or 'gdalinfo=true' to get the full file info.
+To inquire just the list of available arrays use `list=true` or `gdalinfo=true` to get the full file info.
 
     Examples:
 
