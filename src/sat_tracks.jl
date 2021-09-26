@@ -1,5 +1,5 @@
 """
-sat_tracks(; tiles::Bool=false, position::Bool=false, kwargs...)
+    sat_tracks(; tiles::Bool=false, position::Bool=false, kwargs...)
 
 Compute satellite tracks using the TLE, or Two Line Elements set, a data format that contains
 information about the orbit at a specific epoch of an Earth-orbiting object. It can also
@@ -145,8 +145,33 @@ function get_sat_name(d::Dict)::String
 end
 
 # --------------------------------------------------------------------------------------------
-function sat_scenes(track, halfwidth, sat_name)
+"""
+sat_scenes(track, sat_name::String)
+
+Compute polygons delimiting AQUA and TERRA scenes.
+
+- `trac`: Is an orbit computed with `sat_tracks` at steps of 1 minute (crucial)
+- `sat_name`: The satellite name. At this time only AQUA and TERRA are allowed.
+
+Returns a GMTdataset vector with the polygons and the scene names in the dataset `header` field.
+
+# Example
+Imagine that `orb` was obtained with
+
+orb = sat_tracks(tle=[tle1; tle2], start=DateTime("2021-09-02T13:30:00"),
+	stop=DateTime("2021-09-02T13:40:00"), step="1m");
+
+The scenes limits (two) are computed with:
+
+```
+Dscenes = sat_scenes(orb, "AQUA");
+```
+
+"""
+function sat_scenes(track, sat_name::String)
 	# Compute polygons with the scene limits. 'halfwidth' is half the scene width.
+	halfwidth = get(RemoteS.SCENE_HALFW, sat_name, 0)
+	(halfwidth == 0) && error("Currently only \"AQUA\" and \"TERRA\" satellite names are available")
 	_, azim, = invgeod(track[1:end-1, 1:2], track[2:end, 1:2])	# distances and azimuths along the tracks
 	append!(azim, azim[end])		# To make it same size of tracks
 	D = Vector{GMTdataset}(undef, trunc(Int, (length(azim)-1)/5))
@@ -157,7 +182,7 @@ function sat_scenes(track, halfwidth, sat_name)
 		sc = get_MODIS_scene_name(track[k,4], sat_name)
 		D[n+=1] = GMTdataset([ll14[1:1,:]; ll23[1:1,:]; ll23[2:2,:]; ll14[2:2,:]; ll14[1:1,:]], String[], sc, String[], "", "", GMT.Gdal.wkbPolygon)
 	end
-	D[1].proj4 = prj4WGS84
+	D[1].proj4 = GMT.prj4WGS84
 	D
 end
 
@@ -174,8 +199,27 @@ function get_MODIS_scene_name(jd::Float64, prefix::String, sst::Bool=true)
 end
 
 # --------------------------------------------------------------------------------------------
-function within_BB(track, bb::Vector{<:Real})
+"""
+    clip_orbits(track, BoundingBox::Vector{<:Real})
+
+Clips the orbits that are contained inside a rectangular geographical region
+
+- `track`: A GMTdataset or a Mx2 matrix with the orbits [lon, lat] position. This is normally calculated 
+   with the `sat_tracks` function.
+- `BoundingBox`: A vector the region limits made up with [lon_min, lon_max, lat_min, lat_max]
+
+Returns a GMTdataset vector with the chunks of `tracks` that cross inside the `BoundingBox` region.
+
+#Example
+Suppose `orb` holds orbits computed with sat_tracks() during 2 days, clip them inside the 20W-10E, 30N-45N window
+
+```
+D = clip_orbits(orb, [-20, 10, 30, 50]);
+```
+"""
+function clip_orbits(track, bb::Vector{<:Real})
 	# Select the parts of the track that are contained inside the BB.
+	(length(bb) != 4) && error("The BoundingBox vector must have 4 elements")
 	segments = GMT.gmtselect(track, region=bb, f=:g)
 	azim = invgeod(segments[1].data[1:end-1, 1:2], segments[1].data[2:end, 1:2])[2]
 	inds = findall(abs.(diff(azim)) .> 10)			# Detect line breaks
@@ -220,7 +264,7 @@ Note, this will be accurate for the month of September 2021. For other dates it 
 
     tle1 = "1 27424U 02022A   21245.83760660  .00000135  00000-0  39999-4 0  9997";
     tle2 = "2 27424  98.2123 186.0654 0002229  67.6025 313.3829 14.57107527 28342";
-    findscene(-8,36, start="2021-09-07T17:00:00", sat=:aqua, day=true, duration=-2, oc=1, tle=[tle1, tle2])
+    findscenes(-8,36, start="2021-09-07T17:00:00", sat=:aqua, day=true, duration=-2, oc=1, tle=[tle1, tle2])
 
 	2-element Vector{String}:
 	"A2021251125500.L2_LAC_OC.nc"
@@ -252,7 +296,7 @@ function findscenes(lon::Real, lat::Real; kwargs...)
 	tle = loadTLE(d)
 	tracks = sat_tracks(start=start, stop=stop, tle_obj=tle)
 	BB = [lon-10, lon+10, lat-10, lat+10]
-	D = within_BB(tracks, BB)
+	D = clip_orbits(tracks, BB)
 	(day || night) && (D = day_night_orbits(D, day=day, night=night))
 	isempty(D) && (@warn("No tracks left after this choice."); return nothing)
 
@@ -271,7 +315,7 @@ end
 
 # --------------------------------------------------------------------------------------------
 function day_night_orbits(D; day::Bool=false, night::Bool=false)
-	# Pick only the day or night orbits in D. D is normally the output of the within_BB() fun 
+	# Pick only the day or night orbits in D. D is normally the output of the clip_orbits() fun 
 	(!day && !night) && return D		# No selection requested
 
 	pass = zeros(Bool, length(D))

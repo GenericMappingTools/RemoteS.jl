@@ -12,7 +12,7 @@ export
 	cutcube, subcube, dn2temperature, dn2radiance, dn2reflectance, reflectance_surf, grid_at_sensor, truecolor,
 	clg, clre, evi, evi2, gndvi, mndwi, mtci, mcari, msavi, mbri, ndvi, ndwi, ndwi2, ndrei1,
 	ndrei2, satvi, savi, slavi,
-	sat_tracks, findscenes, reportbands
+	clip_orbits, findscenes, sat_scenes, sat_tracks, reportbands
 
 include("grid_at_sensor.jl")
 include("spectral_indices.jl")
