@@ -1,7 +1,7 @@
 # RemoteS.jl
 
-![Lifecycle](https://img.shields.io/badge/lifecycle-experimental-orange.svg)<!--
-![Lifecycle](https://img.shields.io/badge/lifecycle-maturing-blue.svg)
+![Lifecycle](https://img.shields.io/badge/lifecycle-maturing-blue.svg)<!--
+![Lifecycle](https://img.shields.io/badge/lifecycle-experimental-orange.svg)
 ![Lifecycle](https://img.shields.io/badge/lifecycle-stable-green.svg)
 ![Lifecycle](https://img.shields.io/badge/lifecycle-retired-orange.svg)
 ![Lifecycle](https://img.shields.io/badge/lifecycle-archived-red.svg)
@@ -16,13 +16,13 @@ Package to perform operations with satellite data. Easy to use in computing true
 automatic contrast stretch, many spectral indices and processing of MODIS L2 files. It depends heavily,
 and so far only, on [GMT.jl](https://github.com/GenericMappingTools/GMT.jl). Since GMT relies on GDAL to
 read many raster formats most of satellite and other remote sensing data can be read and processed by this package. 
-Plotting satellite orbits and finding AQUA and TERRA scene names is also possible if the [SatelliteToolbox](https://github.com/JuliaSpace/SatelliteToolbox.jl)
-is installed.
+Plotting satellite orbits and finding AQUA and TERRA scene names is also possible if the
+[SatelliteToolbox](https://github.com/JuliaSpace/SatelliteToolbox.jl) is installed.
 
 Example, a true color image from Landsat8
 =========================================
 
-Load the Red, Green & Blue bands from a Landsat8 scene from AWS (takes a *little* time)
+Load the Red, Green & Blue bands from a Landsat8 scene from AWS (it takes a *little* time)
 
 ```
 using RemoteS, GMT
