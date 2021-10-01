@@ -81,16 +81,29 @@ I = truecolor("LC08__cube.tiff");
 function truecolor(bndR, bndG, bndB)
 	I = isa(bndR, GMT.GMTimage) ? bndR : gmtread(bndR)
 	img = Array{UInt8}(undef, size(I,1), size(I,2), 3)
-	_ = mat2img(I.image, stretch=true, img8=view(img,:,:,1), scale_only=1)
+	if (eltype(I) == UInt8)
+		img[:,:,1] .= I.image
+	else
+		_ = mat2img(I.image, stretch=true, img8=view(img,:,:,1), scale_only=1)
+	end
 	I = isa(bndG, GMT.GMTimage) ? bndG : gmtread(bndG)
 	@assert size(I,1) == size(img,1) && size(I,2) == size(img,2)
-	_ = mat2img(I.image, stretch=true, img8=view(img,:,:,2), scale_only=1)
+	if (eltype(I) == UInt8)
+		img[:,:,2] .= I.image
+	else
+		_ = mat2img(I.image, stretch=true, img8=view(img,:,:,2), scale_only=1)
+	end
 	I = isa(bndB, GMT.GMTimage) ? bndB : gmtread(bndB)
 	@assert size(I,1) == size(img,1) && size(I,2) == size(img,2)
-	_ = mat2img(I.image, stretch=true, img8=view(img,:,:,3), scale_only=1)
+	if (eltype(I) == UInt8)
+		img[:,:,3] .= I.image
+	else
+		_ = mat2img(I.image, stretch=true, img8=view(img,:,:,3), scale_only=1)
+	end
 	Io = mat2img(img, I);	Io.layout = "TRBa"
 	Io
 end
+
 truecolor(cube::GMT.GMTimage{UInt16, 3}, layers::Vector{Int}) = truecolor(cube, layers=layers)
 function truecolor(cube::GMT.GMTimage{UInt16, 3}; layers::Vector{Int}=Int[])
 	(length(layers) != 3) && error("For an RGB composition 'bands' must be a 3 elements array and not $(length(layers))")
@@ -103,11 +116,27 @@ function truecolor(cube::GMT.GMTimage{UInt16, 3}; layers::Vector{Int}=Int[])
 	Io = mat2img(img, cube);	Io.layout = "TRBa"
 	Io
 end
+
+truecolor(cube::GMT.GMTgrid{Float32, 3}, layers::Vector{Int}) = truecolor(cube, layers=layers)
+function truecolor(cube::GMT.GMTgrid{Float32, 3}; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[],
+	               bandnames::Vector{String}=String[])
+	(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bandnames = ["red", "green", "blue"])
+	isempty(layers) && (layers = find_layers(cube, bandnames, bands))
+	(length(layers) != 3) && error("For an RGB composition 'bands' must be a 3 elements array and not $(length(layers))")
+	img = Array{UInt8, 3}(undef, size(cube,1), size(cube,2), 3)
+	img[:,:,1] = rescale(@view(cube[:,:,layers[1]]), stretch=true, type=UInt8)
+	img[:,:,2] = rescale(@view(cube[:,:,layers[2]]), stretch=true, type=UInt8)
+	img[:,:,3] = rescale(@view(cube[:,:,layers[3]]), stretch=true, type=UInt8)
+	Io = mat2img(img, cube);	Io.layout = "TRBa"
+	Io
+end
+
 function truecolor(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], raw::Bool=false)
 	# The `raw` option returns a GMTimage{UInt16, 3} and does not convert to UInt8 with auto-stretch (default)
 	(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bandnames = ["red", "green", "blue"])
 	rgb = subcube(cube, bands=bands, layers=layers, bandnames=bandnames)
-	return (!raw) ? mat2img(rgb, stretch=:auto) : rgb	# Convert to UInt8 with autostretch or return the raw GMTimage data
+	(raw) && return rgb
+	return (eltype(rgb) <: AbstractFloat) ? truecolor(rgb, layers=[1,2,3]) : mat2img(rgb, stretch=:auto)
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -161,10 +190,13 @@ function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers:
 	bands
 end
 
-function find_layers(cube::GMT.GMTimage{UInt16, 3}, fun_bnd_names::Vector{String})
-	# Find the layers corresponding to the (parts of) contents of "fun_bnd_names" 
+#function find_layers(cube::GMT.GMTimage{UInt16, 3}, bandnames::Vector{String}=String[], bands::Vector{Int}=Int[])
+function find_layers(cube::AbstractArray, bandnames::Vector{String}=String[], bands::Vector{Int}=Int[])
+	# Find the layers corresponding to the (parts of) contents of "bandnames"
+	(!isa(cube, GMT.GMTimage{UInt16, 3}) && !isa(cube, GMT.GMTgrid{Float32, 3})) && error("'cube' must be a 3D GMTimage or GMTgrid")
 	(isempty(cube.names)) && error("The `cube` object does not have a `names` (band names) assigned field as required here.")
-	helper_find_layers(cube.names, fun_bnd_names)
+	(!isempty(bands)) && (bandnames = ["Band $(bands[k])" for k = 1:length(bands)])		# Create a bandnames vector
+	helper_find_layers(lowercase.(cube.names), bandnames)
 end
 
 function find_layers(fname::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], alllayers::Bool=false)
@@ -213,7 +245,7 @@ or
 
     reportbands(in, layer;)
 
-Report the Bands description of the `in` input argument. This can be a GMTimage or a file name (a String) of 
+Report the Bands description of the `in` input argument. This can be a GMTimage, a GMTgrid or a file name (a String) of 
 a 'cube' file. Normally one made with the `cutcube` function. When the use conditions of this function are not met,
 either a warning or an error message (if too deep to be caught as a warning) will be issued.
 
@@ -224,8 +256,9 @@ Returns a string vector.
 """
 reportbands(in, layer::Int) = reportbands(in, layers=[layer])
 function reportbands(in; layers::Vector{Int}=Int[])
-	(!isa(in, GMT.GMTimage) && !isa(in, String)) && error("Bad input. Must be a GMTimage or a file name. Not $(typeof(in))")
-	if (isa(in, GMT.GMTimage))
+	(!isa(in, GMT.GMTimage) && !isa(in, GMT.GMTgrid) && !isa(in, String)) &&
+		error("Bad input. Must be a GMTimage, a GMTgrid or a file name. Not $(typeof(in))")
+	if (isa(in, GMT.GMTimage) || isa(in, GMT.GMTgrid))
 		isempty(in.names) && (println("This image object does not have a `names` assigned field"); return nothing)
 		return (isempty(layers)) ? in.names : in.names[layers]
 	else
@@ -482,13 +515,14 @@ const dns_doc = "
 - `bandname`: When we know the common designation of a band, for example \"Green\", or any part of a band
   description, for example \"NIR\", we can use that info to create a `bandname` string that will be
   matched against the cube's bands descriptions. We can use the `reportbands` function to see the bands description.
+- `save`:  The file name where to save the output. If not provided, a GMTgrid is returned.
 
 Returns a Float32 GMTgrid
 "
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = dn2temperature(fname::String; band::Int=0, mtl::String="")
+    R = dn2temperature(fname::String; band::Int=0, mtl::String="", save::String)
 
 Computes the brigthness temperature of Landasat8 termal band (10 or 11)
 
@@ -501,19 +535,34 @@ Compute the brightness temperature of Band 10 stored in a `cube`
 T = dn2temperature(cube, band=10)
 ```
 """
-function dn2temperature(fname::String; band::Int=0, mtl::String="")
+function dn2temperature(fname::String; band::Int=0, mtl::String="", save::String="")
 	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
 	(pars.band < 10) && throw(ArgumentError("Brightness temperature is only for bands 10 or 11. Not this one: $(pars.band)"))
 	I, indNaN, o = helper1_sats(fname, band_layer)
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
 		o[k] = indNaN[k] ? NaN32 : pars.K2 / (log(pars.K1 / (I.image[k] * pars.rad_mul + pars.rad_add) + 1.0)) - 273.15
 	end
+	G = mat2grid(o, I)
+	(save != "") && gdaltranslate(G, dest=save)
+	return (save != "") ? nothing : G
+end
+
+# ----------------------------------------------------------------------------------------------------------
+function helper_dns_op(I::GMTimage, mul::Float64, add::Float64, indNaN::Matrix{Bool}, o::Matrix{Float32})
+	# Helper function for the dn2radiance, dn2reflectance functions. Avoid IF branch if no NaNs
+	if any(indNaN)
+		@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
+			o[k] = indNaN[k] ? NaN32 : I.image[k] * mul + add
+		end
+	else
+		@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)  o[k] = I.image[k] * mul + add  end
+	end
 	mat2grid(o, I)
 end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = dn2radiance(fname::String, [band::Int, bandname::String, mtl::String])
+    R = dn2radiance(fname::String, [band::Int, bandname::String, mtl::String, save::String])
 
 Computes the radiance at TopOfAtmosphere of a Landsat 8 file
 
@@ -525,18 +574,13 @@ Compute the radiance TOA of Band 2 file.
 R = dn2temperature("LC08_L1TP_204033_20210525_20210529_02_T1_B2.TIF")
 ```
 """
-function dn2radiance(fname::String; band::Int=0, bandname::String="", bandnames::String="", mtl::String="")
-	band_layer, pars = helper_dns(fname, band, bandname, bandnames, mtl)
-	I, indNaN, o = helper1_sats(fname, band_layer)
-	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
-		o[k] = indNaN[k] ? NaN32 : I.image[k] * pars.rad_mul + pars.rad_add
-	end
-	mat2grid(o, I)
+function dn2radiance(fname::String; band::Int=0, bandname::String="", bandnames::String="", mtl::String="", save::String="")
+	dn2aux(fname, "radiance"; band=band, bandname=bandname, bandnames=bandnames, mtl=mtl, save=save)
 end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = dn2reflectance(fname::String, [band::Int, bandname::String, mtl::String])
+    R = dn2reflectance(fname::String, [band::Int, bandname::String, mtl::String, save::String])
 
 Computes the TopOfAtmosphere planetary reflectance of a Landsat8 file
 
@@ -548,28 +592,58 @@ Compute the reflectance TOA of Red Band stored in a `cube`
 R = dn2reflectance(cube, bandname="red")
 ```
 """
-function dn2reflectance(fname::String; band::Int=0, mtl::String="")
-	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
-	(pars.band >= 10) && error("Computing Reflectance for Thermal bands is not defined.")
-	I, indNaN, o = helper1_sats(fname, band_layer)
-	s_elev = sin(pars.sun_elev * pi/180)
-	fact_x = pars.reflect_mul / s_elev
-	fact_a = pars.reflect_add / s_elev
-	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
-		o[k] = indNaN[k] ? NaN32 : I.image[k] * fact_x + fact_a
+function dn2reflectance(fname::String; band::Int=0, bandname::String="", bandnames::String="", mtl::String="", save::String="")
+	dn2aux(fname, "reflect"; band=band, bandname=bandname, bandnames=bandnames, mtl=mtl, save=save)
+end
+
+function dn2aux(fname::String, fun::String; band::Int=0, bandname::String="", bandnames::String="", mtl::String="", save::String="")
+	# Most of dn2reflectance & dn2radiance codes are similar, so gather it here under a common function.
+	function inn_helper_rad(fname, band, bandname, bandnames, mtl)
+		band_layer, pars = helper_dns(fname, band, bandname, bandnames, mtl)
+		I, indNaN, o = helper1_sats(fname, band_layer)
+		helper_dns_op(I, pars.rad_mul, pars.rad_add, indNaN, o)
 	end
-	mat2grid(o, I)
+	function inn_helper_ref(fname, band, bandname, bandnames, mtl)
+		band_layer, pars = helper_dns(fname, band, bandname, bandnames, mtl)
+		(pars.band >= 10) && error("Computing Reflectance for Thermal bands is not defined.")
+		I, indNaN, o = helper1_sats(fname, band_layer)
+		s_elev = sin(pars.sun_elev * pi/180)
+		fact_x = pars.reflect_mul / s_elev
+		fact_a = pars.reflect_add / s_elev
+		helper_dns_op(I, fact_x, fact_a, indNaN, o)
+	end
+
+	helper_fun = (fun == "radiance") ? inn_helper_rad : inn_helper_ref		# Which helper function to use.
+	if (band == 0 && bandname == "" && bandnames == "")
+		bdnames = reportbands(fname)
+		if (fun == "reflect")
+			((ind = findfirst(contains.(bdnames, "Band 10"))) !== nothing) && (deleteat!(bdnames, ind))
+			((ind = findfirst(contains.(bdnames, "Band 11"))) !== nothing) && (deleteat!(bdnames, ind))
+		end
+		G = helper_fun(fname, 0, bdnames[1], "", mtl)
+		mat = G.z
+		for k = 2:length(bdnames)
+			t = helper_fun(fname, 0, bdnames[k], "", mtl)
+			mat = cat(mat, t.z, dims=3)
+		end
+		G = mat2grid(mat, G)
+		G.names = bdnames
+	else
+		G = helper_fun(fname, band, bandname, bandnames, mtl)
+	end
+	(save != "") && gdaltranslate(G, dest=save)
+	return (save != "") ? nothing : G
 end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-    R = reflectance_surf(fname::String, [band::Int, bandname::String, mtl::String])
+    R = reflectance_surf(fname::String, [band::Int, bandname::String, mtl::String, save::String])
 
 Computes the radiance-at-surface of Landsat8 band using the COST model.
 
 $dns_doc
 """
-function reflectance_surf(fname::String; band::Int=0, mtl::String="")
+function reflectance_surf(fname::String; band::Int=0, mtl::String="", save::String="")
 	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
 	(pars.band >= 10) && error("Computing Surface Reflectance for Thermal bands is not defined.")
 	I, indNaN, o = helper1_sats(fname, band_layer)
@@ -598,5 +672,7 @@ function reflectance_surf(fname::String; band::Int=0, mtl::String="")
 		end
 		indNaN[k] && (o[k] = NaN32)
 	end
-	mat2grid(o, I)
+	G = mat2grid(o, I)
+	(save != "") && gdaltranslate(G, dest=save)
+	return (save != "") ? nothing : G
 end

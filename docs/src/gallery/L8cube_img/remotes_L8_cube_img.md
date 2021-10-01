@@ -61,7 +61,7 @@ imshow(Btoa, dpi=150, color=:gray)
 Hmmm, very dark. Let's look at its histogram.
 
 ```julia
-histogram(Gtoa, show=1)
+histogram(Btoa, auto=true,  show=true)
 ```
 
 ```@raw html
@@ -69,5 +69,46 @@ histogram(Gtoa, show=1)
 ```
 
 Yes, the data is very concentraded in the low numbers. We will need to apply a contrast stretch.
+To do that operation we will use the ```rescale``` function with the ``stretch=true`` option that
+uses the limits displayed in the histogram figure above ans stretches the inner interval into
+[0 255] (by effect of the ``type=UInt8`` option).
 
-To be continued.
+```julia
+Btoa_img = rescale(Btoa, stretch=true, type=UInt8);
+imshow(Btoa_img)
+```
+
+```@raw html
+<img src="../LC08_L1TP_20210525_02_Btoa_hist.png" width="500" class="center"/>
+```
+
+Now we are going to do the same for all Red, Green and Blue bands and compose the in a truecolor image.
+Repeating, we are going to compute the radiance at the top of atmosphere, retain only the data inside the
+parts of the histogram where it is more concentrated and create a true color image. To compute the radiance TOA
+we can do it all at once with the ```dn2radiance``` applied to the cube and, like before, create the RGB image
+with ```truecolor```
+
+```julia
+cube_toa_rad = dn2radiance("c:/v/LC08_L1TP_20210525_02_cube.tiff");
+Irgb_toa = truecolor(cube_toa_rad);
+imshow(Irgb_toa)
+```
+
+```@raw html
+<img src="../LC08_L1TP_20210525_02_RGB_toa.png" width="500" class="center"/>
+```
+
+Hm, yes, very nice but it looks very much like the one obtained directly with the digital numbers.
+Indeed, it does but let us zoom in.
+
+```julia
+grdimage(Irgb, region=(502380,514200,4311630,4321420), figsize=8, frame=:bare)
+grdimage!(Irgb_toa, figsize=8, projection=:linear, xshift=8, frame=:bare, show=true)
+```
+
+```@raw html
+<img src="../LC08_L1TP_20210525_02_RGB_compare.png" width="600" class="center"/>
+```
+
+We can now clearly see that the image on the right, the one made the radiance TOA, has an higher
+contrast than the one made with data without any corrections.
