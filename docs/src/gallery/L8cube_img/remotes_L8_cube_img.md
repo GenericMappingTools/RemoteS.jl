@@ -65,7 +65,7 @@ histogram(Btoa, auto=true,  show=true)
 ```
 
 ```@raw html
-<img src="../LC08_L1TP_20210525_02_Gtoa_histo.png" width="350" class="center"/>
+<img src="../LC08_L1TP_20210525_02_Btoa_histo.png" width="350" class="center"/>
 ```
 
 Yes, the data is very concentraded in the low numbers. We will need to apply a contrast stretch.
