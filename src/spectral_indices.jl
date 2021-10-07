@@ -548,7 +548,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
 	end
-	if (isa(bnd1, GMT.GMTimage))
+	if (isa(bnd1, GMT.GMTimage) || isa(bnd1, GMT.GMTgrid))
 		if (mask || classes !== nothing)
 			I = mat2img(img, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y)
 			I.epsg = bnd1.epsg;		I.layout = "BRPa"

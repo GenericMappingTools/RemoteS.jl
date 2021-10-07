@@ -117,7 +117,7 @@ function get_xyz_qual(sds_lon::String, sds_lat::String, sds_z::String, quality::
 		qual = reshape(qual, size(qual,1), size(qual,2))
 		z_vals = z_vals[qual]
 		lon, lat, dx, dy = get_lon_lat_qual(sds_lon, sds_lat, qual, inc)
-		(proj4 == "") && (proj4 = "+proj=longlat +datum=WGS84 +no_defs")	# Almost for sure that's always the case
+		(proj4 == "") && (proj4 = GMT.prj4WGS84)	# Almost for sure that's always the case
 	else
 		info = gdalinfo(trim_SUBDATASET_str(sds_z))
 		fill_val, got_fill_val = get_FillValue(info)
