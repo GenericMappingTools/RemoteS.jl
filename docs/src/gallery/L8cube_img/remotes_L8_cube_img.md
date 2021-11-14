@@ -71,7 +71,7 @@ histogram(Btoa, auto=true,  show=true)
 Yes, the data is very concentraded in the low numbers. We will need to apply a contrast stretch.
 To do that operation we will use the ```rescale``` function with the ``stretch=true`` option that
 uses the limits displayed in the histogram figure above ans stretches the inner interval into
-[0 255] (by effect of the ``type=UInt8`` option).
+`[0 255]` (by effect of the ``type=UInt8`` option).
 
 ```julia
 Btoa_img = rescale(Btoa, stretch=true, type=UInt8);
