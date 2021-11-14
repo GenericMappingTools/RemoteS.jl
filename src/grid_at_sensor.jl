@@ -15,7 +15,10 @@ it is stored in a 3D array. If that is the case, use the keyword 'band' to selec
 Bands are numbered from 1.
 
 The interpolation is done so far with 'nearneighbor'. Both the region (-R) and increment (-I) are estimated
-from data but they can be set with `region` and `inc` kwargs as well.
+from data but they can be set with `region` and `inc` kwargs as well. One can also set the 'nearneighbor'
+serach radius with option `search_radius`. The defaul is to set search_radius equal to two times
+the average increment.
+
 For MODIS data we can select the quality flag to filter by data quality. By default the best quality (=0) is
 used, but one can select another with the `quality=val` kwarg. Positive 'val' values select data of quality
 <= quality, whilst negative 'val' values select only data with quality >= abs(val). This allows for example
@@ -32,10 +35,9 @@ To inquire just the list of available arrays use `list=true` or `gdalinfo=true` 
 
     G = grid_at_sensor("TXx-narr-annual-timavg.nc", "T2MAX", xarray="XLONG", yarray="XLAT", V=true);
 """
-function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::Bool=false, inc=0.0, kw...)
+function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::Bool=false, kw...)
 
 	d = KW(kw)
-	(inc >= 1) && error("Silly value $(inc) for the resolution of L2 MODIS grid")
 	!isfile(fname) && error("This file $(fname) does not exist")
 	info = gdalinfo(fname)
 	if (info === nothing)		# Try again after calling resetGMT because still something screws time-to-time
@@ -43,7 +45,10 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 		info = gdalinfo(fname)
 	end
 	(haskey(d, :gdalinfo)) && (return println(info))
-	((ind = findfirst("Subdatasets:", info)) === nothing) && error("This file " * fame * " is not a MODS L2 file")
+	inc = ((val = find_in_dict(d, [:inc :increment :spacing])[1]) !== nothing) ? val : [0.0, 0.0]
+	(isa(inc, Tuple)) && (inc = collect(inc))
+	(isa(inc, Real)) && (inc = [inc, inc])
+	((ind = findfirst("Subdatasets:", info)) === nothing) && error("This file " * fame * " has no Subdatasets")
 	is_MODIS = (findfirst("MODISA Level-2", info) !== nothing) ? true : false
 	info = info[ind[1]+12:end]		# Chop up the long string into smaller chunk where all needed info lives
 	ind = findlast("SUBDATASET_", info)
@@ -72,16 +77,16 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 	lon, lat, z_vals, inc, proj4 = get_xyz_qual(sds_lon, sds_lat, sds_z, quality, sds_qual, inc, band, V)
 
 	if ((opt_R = GMT.parse_R(d, "")[1]) == "")	# If != "" believe it makes sense as a -R option
-		inc_txt = split("$(inc)", '.')[2]		# To count the number of decimal digits to use in rounding
+		inc_txt = split("$(inc[1])", '.')[2]	# To count the number of decimal digits to use in rounding
 		nd = length(inc_txt)
 		min_lon, max_lon = extrema(lon)
 		min_lat, max_lat = extrema(lat)
-		west, east   = round(min_lon-inc; digits=nd), round(max_lon+inc; digits=nd)
-		south, north = round(min_lat-inc; digits=nd), round(max_lat+inc; digits=nd)
+		west, east   = round(min_lon-inc[1]; digits=nd), round(max_lon+inc[1]; digits=nd)
+		south, north = round(min_lat-inc[2]; digits=nd), round(max_lat+inc[2]; digits=nd)
 		if (x_name == "longitude")			# The "inc" pad above may "overflow" geogs. Revet the padding if need.
-			((east - west) > 360) && (west += inc;	east -= inc)
-			(north >  90) && (north -= inc)
-			(south < -90) && (south += inc)
+			((east - west) > 360) && (west += inc[1];	east -= inc[1])
+			(north >  90) && (north -= inc[2])
+			(south < -90) && (south += inc[2])
 		end
 		opt_R = @sprintf("%.10g/%.10g/%.10g/%.10g", west, east, south, north)
 	else
@@ -92,7 +97,8 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 		O = mat2ds([lon lat z_vals])
 		O[1].proj4 = proj4
 	else
-		O = nearneighbor([lon lat z_vals], I=inc, R=opt_R, S=2*inc, Vd=(V) ? 1 : 0)
+		s_rad = ((val = find_in_dict(d, [:S :search_radius])[1]) !== nothing) ? string(val) : (inc[1]+inc[2])
+		O = nearneighbor([lon lat z_vals], I=inc, R=opt_R, S=s_rad, Vd=(V) ? 1 : 0)
 		O.proj4 = proj4
 	end
 	return O
@@ -109,7 +115,7 @@ end
 
 # ---------------------------------------------------------------------------------------------------
 function get_xyz_qual(sds_lon::String, sds_lat::String, sds_z::String, quality::Int, sds_qual::String="",
-	                  inc::Float64=0., band::Int=1, V::Bool=false)
+	                  inc::Vector{Float64}=[0.,0.], band::Int=1, V::Bool=false)
 	# Get a Mx3 matrix with data to feed interpolator. Filter with quality if that's the case
 	# If INC != 0, also estimates a reasonable increment for interpolation
 	(V) && println("Extract lon, lat, " * sds_z * " from file")
@@ -134,12 +140,12 @@ function get_xyz_qual(sds_lon::String, sds_lat::String, sds_z::String, quality::
 		else
 			G = gd2gmt(sds_lon);	lon = G.z
 			G = gd2gmt(sds_lat);	lat = G.z
-			(inc == 0.0) && (dx = diff(lon[:, round(Int, size(lon, 1)/2)]))
-			(inc == 0.0) && (dy = diff(lat[round(Int, size(lat, 2)/2), :]))
+			(inc[1] == 0.0) && (dx = diff(lon[:, round(Int, size(lon, 1)/2)]))
+			(inc[2] == 0.0) && (dy = diff(lat[round(Int, size(lat, 2)/2), :]))
 		end
 		(proj4 == "") && (proj4 = GMT.seek_wkt_in_gdalinfo(info))
 	end
-	(inc == 0) && (inc = guess_increment_from_coordvecs(dx, dy))
+	(inc[1] == 0) && (inc = guess_increment_from_coordvecs(dx, dy))
 	(V) && println("Finished extraction ($(length(z_vals)) points), now intepolate")
 	return lon, lat, z_vals, inc, proj4
 end
@@ -148,10 +154,10 @@ function get_lon_lat_qual(sds_lon::String, sds_lat::String, qual, inc)
 	# Another helper function to get only the lon, lat values that pass the 'qual' criteria
 	dx, dy = Vector{Float32}(), Vector{Float32}()
 	G = gd2gmt(sds_lon);
-	(inc == 0.0) && (dx = diff(G.z[:, round(Int, size(G.z, 1)/2)]))
+	(inc[1] == 0.0) && (dx = diff(G.z[:, round(Int, size(G.z, 1)/2)]))
 	lon = G.z[qual]
 	G = gd2gmt(sds_lat);
-	(inc == 0.0) && (dy = diff(G.z[round(Int, size(G.z,2)/2), :]))
+	(inc[2] == 0.0) && (dy = diff(G.z[round(Int, size(G.z,2)/2), :]))
 	lat = G.z[qual]
 	return lon, lat, dx, dy
 end
@@ -160,6 +166,10 @@ end
 function guess_increment_from_coordvecs(dx, dy)
 	# Guess a good -I<inc> from the spacings in the x (lon), y(lat) arrays
 	x_mean = abs(Float64(mean(dx)));		y_mean = abs(Float64(mean(dy)));
-	xy_std = max(Float64(std(dx)), Float64(std(dy)))
-	return (xy_std == 0) ? (x_mean + y_mean) / 2 : round((x_mean + y_mean) / 2, digits=round(Int, abs(log10(xy_std))))
+	#xy_std = max(Float64(std(dx)), Float64(std(dy)))
+	#return (xy_std == 0) ? (x_mean + y_mean) / 2 : round((x_mean + y_mean) / 2, digits=round(Int, abs(log10(xy_std))))
+	x_std, y_std = Float64(std(dx)), Float64(std(dy))
+	inc_x = (x_std == 0) ? x_mean : round(x_mean, digits=round(Int, abs(log10(x_std))))
+	inc_y = (y_std == 0) ? y_mean : round(y_mean, digits=round(Int, abs(log10(y_std))))
+	[inc_x, inc_y]
 end
