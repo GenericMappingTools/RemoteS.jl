@@ -71,14 +71,19 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 	band = ((val = find_in_dict(d, [:band])[1]) !== nothing) ? Int(val) : 1
 	lon, lat, z_vals, inc, proj4 = get_xyz_qual(sds_lon, sds_lat, sds_z, quality, sds_qual, inc, band, V)
 
-	if ((opt_R = GMT.parse_R(d, "")[1]) == "")		# If != "" believe it makes sense as a -R option
+	if ((opt_R = GMT.parse_R(d, "")[1]) == "")	# If != "" believe it makes sense as a -R option
 		inc_txt = split("$(inc)", '.')[2]		# To count the number of decimal digits to use in rounding
-		ndigits = length(inc_txt)
+		nd = length(inc_txt)
 		min_lon, max_lon = extrema(lon)
 		min_lat, max_lat = extrema(lat)
-		west, east   = round(min_lon-inc; digits=ndigits), round(max_lon+inc; digits=ndigits)
-		south, north = round(min_lat-inc; digits=ndigits), round(max_lat+inc; digits=ndigits)
-		opt_R = GMT.sprintf("%.10g/%.10g/%.10g/%.10g", west, east, south, north)
+		west, east   = round(min_lon-inc; digits=nd), round(max_lon+inc; digits=nd)
+		south, north = round(min_lat-inc; digits=nd), round(max_lat+inc; digits=nd)
+		if (x_name == "longitude")			# The "inc" pad above may "overflow" geogs. Revet the padding if need.
+			((east - west) > 360) && (west += inc;	east -= inc)
+			(north >  90) && (north -= inc)
+			(south < -90) && (south += inc)
+		end
+		opt_R = @sprintf("%.10g/%.10g/%.10g/%.10g", west, east, south, north)
 	else
 		opt_R = opt_R[4:end]		# Because it already came with " -R....." from parse_R()
 	end
@@ -109,6 +114,7 @@ function get_xyz_qual(sds_lon::String, sds_lat::String, sds_z::String, quality::
 	# If INC != 0, also estimates a reasonable increment for interpolation
 	(V) && println("Extract lon, lat, " * sds_z * " from file")
 	G = gd2gmt(sds_z; band=band);		z_vals = G.z;		proj4 = G.proj4
+
 	if (sds_qual != "")
 		Gqual = gd2gmt(sds_qual)
 		if (quality >= 0)  qual = (Gqual.image .< quality + 1)		# Best (0), Best+Intermediate (1) or all (2)
@@ -119,8 +125,8 @@ function get_xyz_qual(sds_lon::String, sds_lat::String, sds_z::String, quality::
 		lon, lat, dx, dy = get_lon_lat_qual(sds_lon, sds_lat, qual, inc)
 		(proj4 == "") && (proj4 = GMT.prj4WGS84)	# Almost for sure that's always the case
 	else
-		info = gdalinfo(trim_SUBDATASET_str(sds_z))
-		fill_val, got_fill_val = get_FillValue(info)
+		info = gdalinfo(GMT.trim_SUBDATASET_str(sds_z))
+		fill_val, got_fill_val = GMT.get_FillValue(info)
 		if (got_fill_val)
 			qual = (z_vals .!= fill_val)
 			z_vals = z_vals[qual]
@@ -131,7 +137,7 @@ function get_xyz_qual(sds_lon::String, sds_lat::String, sds_z::String, quality::
 			(inc == 0.0) && (dx = diff(lon[:, round(Int, size(lon, 1)/2)]))
 			(inc == 0.0) && (dy = diff(lat[round(Int, size(lat, 2)/2), :]))
 		end
-		(proj4 == "") && (proj4 = seek_wkt_in_gdalinfo(info))
+		(proj4 == "") && (proj4 = GMT.seek_wkt_in_gdalinfo(info))
 	end
 	(inc == 0) && (inc = guess_increment_from_coordvecs(dx, dy))
 	(V) && println("Finished extraction ($(length(z_vals)) points), now intepolate")
