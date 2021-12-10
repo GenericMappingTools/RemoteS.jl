@@ -1,7 +1,7 @@
 name = "RemoteS"
 uuid = "26020ff4-e92a-488e-a723-09c28e89e04a"
 authors = ["Joaquim Luis <jmfluis@gmail.com>"]
-version = "0.2.4"
+version = "0.2.5"
 
 [deps]
 GMT = "5752ebe1-31b9-557e-87aa-f909b540aa54"
