@@ -15,7 +15,7 @@ via the `sds_name` arg.
   it is stored in a 3D array. If that is the case, use the keyword 'band' to select a band (ex: 'band=2')
   Bands are numbered from 1.
 
-- `region`, `inc` and `search_radius`:
+- `region` | `limits`, `inc` | `increment` | `spacing` and `search_radius`:
   The interpolation is done so far with ``nearneighbor`` Both the region (-R) and increment (-I) are estimated
   from data but they can be set with `region` and `inc` kwargs as well. One can also set the ``nearneighbor``
   serach radius with option `search_radius`. The defaul is to set `search_radius` equal to two times
@@ -34,8 +34,17 @@ via the `sds_name` arg.
   program to do a coordinate conversion before gridding. `t_srs` should then be a proj4 string with the destiny
   projection system.
 
-- `dataset` or `outxyz`: If instead of calculating a grid (returned as a GMTgrid type) user wants the x,y,z data
-  intself, use the keywords `dataset`, or `outxyz` and the output will be in a GMTdataset (i.e. use `dataset=true`).
+- `nodata`: Sometimes datasets use other than NaN to represent nodata but they don't specify it in the
+  netCDF attributes (*e.g.* the NSIDC products). This option allows to fix this (*i.e* `nodata=-9999`)
+  Note that this is automatically set for the NSIDC products.
+
+- `nointerp`: Means to not do any nearneighbor interpolation but needs that `region` has been set.
+
+- `NSIDC_N` and `NSIDC_S`: Set the `s_srs`, `region`, `nointerp`, `nodata` appropriate to read the See Ice NSIDC
+  https://nsidc.org/data/polar-stereo/ps_grids.html grids.
+
+- `dataset` or `xyz`: If instead of calculating a grid (returned as a GMTgrid type) user wants the x,y,z data
+  intself, use the keywords `dataset`, or `xyz` and the output will be in a GMTdataset (i.e. use `dataset=true`).
 
 To inquire just the list of available arrays use `list=true` or `gdalinfo=true` to get the full file info.
 
@@ -44,6 +53,8 @@ To inquire just the list of available arrays use `list=true` or `gdalinfo=true` 
     G = grid_at_sensor("AQUA_MODIS.20020717T135006.L2.SST.nc", "sst", V=true);
 
     G = grid_at_sensor("TXx-narr-annual-timavg.nc", "T2MAX", xarray="XLONG", yarray="XLAT", V=true);
+
+    G = grid_at_sensor("RDEFT4_20101021.nc", "sea_ice_thickness", NSIDC_N=true);
 """
 function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::Bool=false, kw...)
 
@@ -60,7 +71,7 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 	elseif (isa(inc_, Real))  inc = [Float64(inc_), Float64(inc_)]
 	else                      inc = inc_
 	end
-	((ind = findfirst("Subdatasets:", info)) === nothing) && error("This file " * fame * " has no Subdatasets")
+	((ind = findfirst("Subdatasets:", info)) === nothing) && error("This file " * fname * " has no Subdatasets")
 	is_MODIS = (findfirst("MODISA Level-2", info) !== nothing) ? true : false
 	info = info[ind[1]+12:end]		# Chop up the long string into smaller chunk where all needed info lives
 	ind = findlast("SUBDATASET_", info)
@@ -84,13 +95,47 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 	sds_lon = helper_find_sds(x_name, info, ind_EOLs)
 	sds_lat = helper_find_sds(y_name, info, ind_EOLs)
 
+	function get_prj(d::Dict, symbs)::String		# See if we have a proj/epsg setting
+		((val = find_in_dict(d, symbs)[1]) === nothing) && return ""
+		isa(val, Int) && return epsg2proj(val)
+		val
+	end
+
 	# Get the arrays with the data
 	band::Int = ((val = find_in_dict(d, [:band])[1]) !== nothing) ? Int(val) : 1
-	t_srs::String = ((val = find_in_dict(d, [:t_srs :target_proj])[1]) !== nothing) ? val : ""
+	t_srs = get_prj(d, [:t_srs :target_proj])
 	nodata::Float64 = ((val = find_in_dict(d, [:nodata])[1]) !== nothing) ? val : Inf
-	lon, lat, z_vals, inc, proj4 = get_xyz_qual(sds_lon, sds_lat, sds_z, quality, sds_qual, inc, band, t_srs, nodata, V)
+	opt_R = GMT.parse_R(d, "")[1]
+	
+	if ((haskey(d, :nointerp) && opt_R != "") || haskey(d, :NSIDC_N) || haskey(d, :NSIDC_S))	# No interps
+		# Just make a grid with the provided -R. No interpolations
+		G = gd2gmt(sds_z; band=band);
+		do_flip = true
+		if (haskey(d, :NSIDC_N))
+			lims = [-3850000, 3750000, -5350000, 5850000];	G.proj4 = epsg2proj(3413);	nodata == Inf && (nodata = -9999.0)
+		elseif (haskey(d, :NSIDC_S))
+			lims = [-3950000, 3950000, -3950000, 4350000];	G.proj4 = epsg2proj(3976);	nodata == Inf && (nodata = -9999.0)
+		else
+			lims = parse.(Float64, split(opt_R[4:end], "/"));	do_flip = false
+		end
 
-	if ((opt_R = GMT.parse_R(d, "")[1]) == "")	# If != "" believe it makes sense as a -R option
+		G.inc = [(lims[2] - lims[1]) / size(G, 1), (lims[4] - lims[3]) / size(G, 2)]
+		G.range[1:4], G.registration = lims, 1
+		((s_srs = get_prj(d, [:s_srs :source_proj])) != "") && (G.proj4 = s_srs)
+		(haskey(d, :flipud) || do_flip) && (G.z = G.z[:, end:-1:1])	# Well, fliplr because array is transposed.
+
+		if (nodata != Inf)		# If asked to replace the nodata by NaNs
+			@inbounds Threads.@threads for k = 1:length(G)
+				(G[k] == nodata) && (G[k] = NaN32)
+			end
+			G.range[5] = GMT.minimum_nan(G)
+		end
+		return G
+	else
+		lon, lat, z_vals, inc, proj4 = get_xyz_qual(sds_lon, sds_lat, sds_z, quality, sds_qual, inc, band, t_srs, nodata, V)
+	end
+
+	if (opt_R == "")							# If != "" believe it makes sense as a -R option
 		inc_txt = split("$(inc[1])", '.')[2]	# To count the number of decimal digits to use in rounding
 		nd = length(inc_txt)					# and the number of decimals count
 		min_lon, max_lon = extrema(lon)
@@ -102,12 +147,13 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 		opt_R = opt_R[4:end]					# Because it already came with " -R....." from parse_R()
 	end
 
-	if (haskey(d, :outxyz) || haskey(d, :dataset))
-		O = mat2ds([lon lat z_vals])
+	in = (isa(lon, Matrix)) ? [lon[:] lat[:] z_vals[:]] : [lon lat z_vals]
+	if (haskey(d, :xyz) || haskey(d, :dataset))
+		O = mat2ds(in)
 		O[1].proj4 = proj4
 	else
-		s_rad = ((val = find_in_dict(d, [:S :search_radius])[1]) !== nothing) ? string(val) : (inc[1]+inc[2])
-		O = nearneighbor([lon lat z_vals], I=inc, R=opt_R, S=s_rad, Vd=(V) ? 1 : 0)
+		s_rad::String = ((val = find_in_dict(d, [:S :search_radius])[1]) !== nothing) ? string(val) : string(inc[1]+inc[2])
+		O = nearneighbor(in, I=inc, R=opt_R, S=s_rad, Vd=(V) ? 1 : 0)
 		O.proj4 = proj4
 	end
 	return O
