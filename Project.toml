@@ -18,5 +18,5 @@ test = ["Test"]
 
 [compat]
 julia = "1.5"
-GMT = "0.40.0"
+GMT = "0.41.0"
 Requires = "1.1.3"
