@@ -135,7 +135,7 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 		lon, lat, z_vals, inc, proj4 = get_xyz_qual(sds_lon, sds_lat, sds_z, quality, sds_qual, inc, band, t_srs, nodata, V)
 	end
 
-	if (opt_R == "")							# If != "" believe it makes sense as a -R option
+	if (opt_R == "" && !haskey(d, :xyz) && !haskey(d, :dataset))	# If != "" believe it makes sense as a -R option
 		inc_txt = split("$(inc[1])", '.')[2]	# To count the number of decimal digits to use in rounding
 		nd = length(inc_txt)					# and the number of decimals count
 		min_lon, max_lon = extrema(lon)
@@ -150,12 +150,11 @@ function grid_at_sensor(fname::String, sds_name::String=""; quality::Int=0, V::B
 	in = (isa(lon, Matrix)) ? [lon[:] lat[:] z_vals[:]] : [lon lat z_vals]
 	if (haskey(d, :xyz) || haskey(d, :dataset))
 		O = mat2ds(in)
-		O[1].proj4 = proj4
 	else
 		s_rad::String = ((val = find_in_dict(d, [:S :search_radius])[1]) !== nothing) ? string(val) : string(inc[1]+inc[2])
 		O = nearneighbor(in, I=inc, R=opt_R, S=s_rad, Vd=(V) ? 1 : 0)
-		O.proj4 = proj4
 	end
+	O.proj4 = proj4
 	return O
 end
 
@@ -237,10 +236,12 @@ function get_lon_lat_qual(sds_lon::String, sds_lat::String, qual, inc)
 	# Another helper function to get only the lon, lat values that pass the 'qual' criteria
 	dx, dy = Vector{Float32}(), Vector{Float32}()
 	G = gd2gmt(sds_lon);
-	(inc[1] == 0.0) && (dx = diff(G.z[:, round(Int, size(G.z, 1)/2)]))
+	# The dx,y <10 test is because NASA keeps screwing and sometimes puting test values as -999.0
+	# in the coordinates arrays. This is so f annoying. 
+	(inc[1] == 0.0) && (dx = diff(G.z[:, round(Int, size(G.z, 1)/2)]); dx = dx[dx .< 10])
 	lon = G.z[qual]
 	G = gd2gmt(sds_lat);
-	(inc[2] == 0.0) && (dy = diff(G.z[round(Int, size(G.z, 2)/2), :]))
+	(inc[2] == 0.0) && (dy = diff(G.z[round(Int, size(G.z, 2)/2), :]); dy = dy[dy .< 10])
 	lat = G.z[qual]
 	return lon, lat, dx, dy
 end
