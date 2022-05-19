@@ -1,7 +1,7 @@
 name = "RemoteS"
 uuid = "26020ff4-e92a-488e-a723-09c28e89e04a"
 authors = ["Joaquim Luis <jmfluis@gmail.com>"]
-version = "0.2.10"
+version = "0.2.11"
 
 [deps]
 GMT = "5752ebe1-31b9-557e-87aa-f909b540aa54"
@@ -18,5 +18,5 @@ test = ["Test"]
 
 [compat]
 julia = "1.5"
-GMT = "0.41.0"
+GMT = "0.42.0"
 Requires = "1.1.3"
