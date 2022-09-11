@@ -2,7 +2,7 @@
     G = grid_at_sensor(fname::String, sds_name::String=""; V::Bool=false, kw...)
 
 Read one of those netCDF files that are not regular grids but have instead the coordinates in the
-LONGITUDE abd LATITUDE arrays. MODIS L2 files are a good example of this. Data in theses files are
+LONGITUDE and LATITUDE arrays. MODIS L2 files are a good example of this. Data in theses files are
 not layed down on a regular grid and we must interpolate to get one. Normally the lon and lat arrays
 are called ``longitude`` and ``latitude`` and these it's what is seek for by default. But files exist
 that pretend to comply to CF but use other names. In this case, use the kwargs `xarray` & `yarray`
