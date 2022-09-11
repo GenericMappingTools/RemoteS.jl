@@ -1,8 +1,6 @@
-#using RemoteS, GMT, Dates
-using RemoteS, Dates		# Can't load GMT while the libstdc++ shit
+using RemoteS, GMT, Dates
 using Test, Statistics, Printf
 
-if (false)					# To try to avoid the libstdc++ shit
 include("../src/sat_tracks.jl")		# Even without SatelliteToolbox loaded we can still test some functions
 
 truecolor(mat2img(rand(UInt16,128,128)), mat2img(rand(UInt16,128,128)), mat2img(rand(UInt16,128,128)));
@@ -72,4 +70,3 @@ G2 = savi(R, NIR);			println("	savi 2")
 G1 = slavi("LC08_cube.tiff"); println("	slavi 1")
 G2 = slavi(R, NIR, SW2);	println("	slavi 2")
 @test G1.range[5:6] == G2.range[5:6]
-end
