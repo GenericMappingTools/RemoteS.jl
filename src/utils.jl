@@ -102,6 +102,7 @@ function truecolor(bndR, bndG, bndB)
 	end
 	Io = mat2img(img, I);
 	Io.layout = (isa(bndR, GMT.GMTimage)) ? "T" * bndR.layout[2] * "Ba" : "TRBa"	# This is shitty fragile
+	(isa(bndR, GMT.GMTimage) && startswith(bndR.layout, "BC")) && (Io.layout = "BCBa")	# Hoorible patch that needs to know why.
 	Io
 end
 
