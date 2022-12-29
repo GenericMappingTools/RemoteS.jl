@@ -101,7 +101,7 @@ function truecolor(bndR, bndG, bndB)
 		_ = mat2img(I.image, stretch=true, img8=view(img,:,:,3), scale_only=1)
 	end
 	Io = mat2img(img, I);
-	Io.layout = (isa(bndR, GMT.GMTimage)) ? "T" * bndR.layout[2] * "Ba" : "TRBa"	# This is shitty fragile
+	Io.layout = (isa(bndR, GMT.GMTimage)) ? bndR.layout[1:2] * "Ba" : "TRBa"	# This is shitty fragile
 	Io
 end
 
