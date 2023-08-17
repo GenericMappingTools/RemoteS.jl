@@ -1,5 +1,5 @@
 """
-    sat_tracks(; tiles::Bool=false, position::Bool=false, kwargs...)
+    sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=false, kwargs...)
 
 Compute satellite tracks using the TLE, or Two Line Elements set, a data format that contains
 information about the orbit at a specific epoch of an Earth-orbiting object. It can also
@@ -13,7 +13,8 @@ the scene names, which provides a mean to direct download that data.
   - `step` or `inc` or `dt`: The time interval at which to compute locations along the orbit. The default
      unit here is seconds (30 sec) but minutes can be used as well by appending 'm'. _e.g._ `step="1m"`
   - `stop`: As alternative to `duration` provide the end date for the orbit. Same conditions as `start`
-  - `position`: Computes only first location af the `start` time. Boolean, use `position=true`
+  - `position`: Computes only first location at the `start` time. Boolean, use `position=true`
+  - `geocentric`: Boolean to controls if output is `lon,lat,alt,time` (the default) or `ECEF` coordinates + time.
   - `tle` or `TLE`: a file name with the TLE data for a specific satellite and period. It can also be a
     two elements string vector with the first and second lines of the TLE file.
   - `tiles`: Compute the scene limits and file names for some satellites. Currently AQUA only.
@@ -53,8 +54,8 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 			elseif (endswith(val,"s"))  dur = Second(parse(Int, val[1:end-1]))
 			else    error("Only 'D', 'h', 'm' or 's' are accepted in duration")
 			end
-		elseif (isa(val, Real))		# Assume duration was given in hours
-			dur = Hour(trunc(Int, val))
+		elseif (isa(val, Real))		# Assume duration was given in minutes
+			dur = Minute(trunc(Int, val))
 		end
 		stop = start + dur
 	else
@@ -80,21 +81,23 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 	if ((val_tle = find_in_dict(d, [:tle_obj])[1]) !== nothing)  tle = val_tle	# Some other fun already got it
 	else                                                         tle = loadTLE(d)
 	end
-	orbp = SatelliteToolbox.init_orbit_propagator(Val(:sgp4), tle[1])
+	orbp = SatelliteToolboxPropagators.Propagators.init(Val(:SGP4), tle)
 
-	startmfe = (datetime2julian(DateTime(start)) - tle[1].epoch) * 24 * 3600
-	stopmfe  = (datetime2julian(DateTime(stop))  - tle[1].epoch) * 24 * 3600
+	epoch_jd = orbp.sgp4d.epoch
+	startmfe = (datetime2julian(DateTime(start)) - epoch_jd) * 24 * 3600
+	stopmfe  = (datetime2julian(DateTime(stop))  - epoch_jd) * 24 * 3600
 	(tiles) && (dt = 60)			# Arbitrary choice that works well for MODIS but may need revision for others
 	t = startmfe:dt:stopmfe
 	
 	(position) && (t = [t[1]])		# Single position. Doing it here wastes work above but code is way cleaner
 
 	out = Matrix{Float64}(undef, length(t), 4)
-	r, = SatelliteToolbox.propagate!(orbp, t)
+	#r = SatelliteToolboxPropagators.Propagators.propagate!.(orbp, t)[1]	# Doesn't work. Why?
 
 	for n = 1:length(t)
-		jd = tle[1].epoch + t[n] / (24 * 3600)
-		tt = SatelliteToolbox.r_eci_to_ecef(SatelliteToolbox.TEME(), SatelliteToolbox.PEF(), jd) * r[n]
+		r = SatelliteToolboxPropagators.Propagators.propagate!(orbp, t[n])[1]
+		jd = epoch_jd + t[n] / (24 * 3600)
+		tt = SatelliteToolboxTransformations.r_eci_to_ecef(SatelliteToolboxTransformations.TEME(), SatelliteToolboxTransformations.PEF(), jd) * r
 		out[n,1], out[n,2], out[n,3], out[n, 4] = tt[1], tt[2], tt[3], jd
 	end
 
@@ -103,7 +106,13 @@ function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=
 		return make_sat_tiles(out[1].data, SCENE_HALFW[sat_name], sat_name)
 	end
 
-	return (geocentric) ? out : mapproject(out, E=true, I=true)[1]
+	if (geocentric)
+		D = mat2ds(out, geom=UInt32(2), colnames=["X", "Y", "Z", "JulianDay"])
+	else
+		D = mapproject(out, E=true, I=true)
+		D.colnames, D.proj4, D.geom = ["lon", "lat", "alt", "JulianDay"], GMT.prj4WGS84, UInt32(2)
+	end
+	D
 end
 
 # --------------------------------------------------------------------------------------------
@@ -119,15 +128,15 @@ end
 function loadTLE(d::Dict)
 	# Load a TLE or use a default one. In a function because it's used by two functions
 	if ((val = find_in_dict(d, [:tle :TLE])[1]) !== nothing)
-		if (isa(val, String))  tle = SatelliteToolbox.read_tle(val)
+		if (isa(val, String))  tle = SatelliteToolboxTle.read_tle(val)
 		elseif (isa(val, Vector{String}) && length(val) == 2)
-			tle = SatelliteToolbox.read_tle_from_string(val[1], val[2])
+			tle = SatelliteToolboxTle.read_tle(val[1], val[2])
 		else
 			error("BAD input TLE data")
 		end
 	else
 		#tle = SatelliteToolbox.read_tle("C:\\v\\Landsat8.tle")
-		tle = SatelliteToolbox.read_tle("C:\\v\\AQUA.tle")
+		tle = SatelliteToolboxTle.read_tle("C:\\v\\AQUA.tle")
 	end
 	tle
 end
@@ -180,7 +189,7 @@ function sat_scenes(track, sat_name::String)
 		ll14 = geod(track[k,1:2],   [azim[k]+90, azim[k]-90], halfwidth)[1]
 		ll23 = geod(track[k+5,1:2], [azim[k+5]+90, azim[k+5]-90], halfwidth)[1]
 		sc = get_MODIS_scene_name(track[k,4], sat_name)
-		D[n+=1] = GMTdataset([ll14[1:1,:]; ll23[1:1,:]; ll23[2:2,:]; ll14[2:2,:]; ll14[1:1,:]], String[], sc, String[], "", "", GMT.Gdal.wkbPolygon)
+		D[n+=1] = GMTdataset([ll14[1:1,:]; ll23[1:1,:]; ll23[2:2,:]; ll14[2:2,:]; ll14[1:1,:]], Float64[], Float64[], Dict{String, String}(), ["lon","lat"], String[], sc, String[], "", "", 0, GMT.Gdal.wkbPolygon)
 	end
 	D[1].proj4 = GMT.prj4WGS84
 	D
@@ -221,14 +230,15 @@ function clip_orbits(track, bb::Vector{<:Real})
 	# Select the parts of the track that are contained inside the BB.
 	(length(bb) != 4) && error("The BoundingBox vector must have 4 elements")
 	segments = GMT.gmtselect(track, region=bb, f=:g)
-	azim = invgeod(segments[1].data[1:end-1, 1:2], segments[1].data[2:end, 1:2])[2]
+	azim = isa(segments, Vector) ? invgeod(segments[1].data[1:end-1, 1:2], segments[1].data[2:end, 1:2])[2] : invgeod(segments[1:end-1, 1:2], segments[2:end, 1:2])[2]
 	inds = findall(abs.(diff(azim)) .> 10)			# Detect line breaks
 
 	begin_seg = [1; inds[2:2:length(inds)].+1]		# Not easy to explain why those indices give seg boundaries
 	end_seg   = [inds[2:2:length(inds)]; length(azim)+1]
 	D = Vector{GMTdataset}(undef, length(begin_seg))
+	colnames, prj4 = isa(track, Vector) ? (track[1].colnames, track[1].proj4) : (track.colnames, track.proj4)
 	for k = 1:length(begin_seg)
-		D[k] = GMTdataset(segments[1].data[begin_seg[k]:end_seg[k], :], String[], "", String[], "", "", GMT.Gdal.wkbLineString)
+		D[k] = GMTdataset(isa(segments, Vector) ? segments[1][begin_seg[k]:end_seg[k], :] : segments[begin_seg[k]:end_seg[k], :], Float64[], Float64[], Dict{String, String}(), colnames, String[], "", String[], prj4, "", 0, GMT.Gdal.wkbLineString)
 	end
 	D[1].proj4 = GMT.prj4WGS84
 	D
@@ -322,7 +332,7 @@ function day_night_orbits(D; day::Bool=false, night::Bool=false)
 	for k = 1:length(D)
 		lon, lat = D[k][1,1:2]
 		jd = D[k][1,4]
-		raise, set = solar(@sprintf("-I%.4f/%.4f+d%s -C", lon, lat, string(julian2datetime(jd))))[1][5:6]
+		raise, set = solar(I=@sprintf("%.4f/%.4f+d%s", lon, lat, string(julian2datetime(jd))), C=true)[5:6]
 		# Subtract 0.5 because julian2datetime(0.0) = -4713-11-24T12:00:00. That is JDs are shifted of 0.5
 		t1, t2 = jd - 0.5, D[k][end,4] - 0.5
 		dday_first, dday_last = t1 - trunc(t1), t2 - trunc(t2)

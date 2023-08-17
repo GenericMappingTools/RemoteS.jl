@@ -1,6 +1,8 @@
 module RemoteS
 
-using GMT, Printf, Statistics, Requires, Dates
+using GMT, Printf, Statistics, Dates#, Requires
+using SatelliteToolboxTle, SatelliteToolboxPropagators, SatelliteToolboxTransformations
+using PrecompileTools
 
 const SCENE_HALFW = Dict("AQUA" => 1163479, "TERRA" => 1163479, "LANDSAT8" => 92500)	# half widths
 
@@ -17,9 +19,20 @@ export
 include("grid_at_sensor.jl")
 include("spectral_indices.jl")
 include("utils.jl")
+include("sat_tracks.jl")
 
-function __init__()
-	@require SatelliteToolbox="6ac157d9-b43d-51bb-8fab-48bf53814f4a" include("sat_tracks.jl")
+@setup_workload begin
+	sat_tracks(tle=["1 27424U 02022A   21245.83760660  .00000135  00000-0  39999-4 0  9997"; "2 27424  98.2123 186.0654 0002229  67.6025 313.3829 14.57107527 28342"], duration=100, geocentric=true)
+	sat_tracks(position=true, tle=["1 27424U 02022A   21245.83760660  .00000135  00000-0  39999-4 0  9997"; "2 27424  98.2123 186.0654 0002229  67.6025 313.3829 14.57107527 28342"]);
+	truecolor(mat2img(rand(UInt16,128,128)), mat2img(rand(UInt16,128,128)), mat2img(rand(UInt16,128,128)));
+	get_MODIS_scene_name(datetime2julian(DateTime("2020-09-20")), "A");
+	reportbands(mat2img(rand(UInt16, 4,4,3), names=["Band 1", "Band 2", "Band 3"]), 3)[1];
 end
+
+
+"""
+Package to perform operations with satellite data. Easy to use in computing true color images with automatic contrast stretch, many spectral indices and processing of MODIS L2 files.
+"""
+RemoteS
 
 end # module

@@ -3,7 +3,7 @@
 Compute 1 day of AQUA satellite orbits starting at current local time. Note, this
 will be accurate for the month of September 2021. For other dates it needs an updated TLE. Note also that repeating the commands below will produce different results since the current local time is used as the starting point.
 
-Orbits calculation rely on the [SatelliteToolbox](https://github.com/JuliaSpace/SatelliteToolbox.jl) package, which is not a direct dependency (meaning, it's not loaded automatically) but need to be installed for this to work. Orbits are calculated with the help of the so called Two Line Element files that unfortunatelly have _accuracy validity_ quite short (around one month). They can be obtainded from the [Space Track](https://www.space-track.org) site.
+Orbits calculation rely on the [SatelliteToolbox](https://github.com/JuliaSpace/SatelliteToolbox.jl) package(s). Orbits are calculated with the help of the so called Two Line Element files that unfortunatelly have _accuracy validity_ quite short (around one month). They can be obtainded from the [Space Track](https://www.space-track.org) site.
 
 ```Julia
 using RemoteS, GMT, SatelliteToolbox
