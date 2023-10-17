@@ -309,8 +309,9 @@ cube = cutcube(bands=[2,3,4], template=temp, region=[479670,492720,4282230,42945
 cutcube(bands=[2,3,4], template=temp, region="479670/492720/4282230/4294500", save="landsat_cube.tif")
 ```
 """
-function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], template::String="", region=nothing, extension::String=".TIF", description::Vector{String}=String[], save::String="", sentinel2::Int=0, mtl::String="")
-	(region === nothing) && error("The `region` option cannot be empty.")
+function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], template::String="",
+                   region=nothing, extension::String=".TIF", description::Vector{String}=String[], save::String="", sentinel2::Int=0, mtl::String="")
+
 	if (isempty(names))
 		(isempty(bands) || template == "") && error("When band file `names` are not provided, MUST indicate `bands` AND `template`")
 		!isa(bands, Vector{<:Integer}) && !isa(bands, Vector{<:String}) && error("`bands` must a vector of Int or Strings.")
@@ -331,19 +332,19 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 	(MTL !== nothing) && (MTL = ["MTL=" * join(MTL, "\n")])
 
 	# Little parsing of the -R string but does not test if W < E & S < N
+	(region === nothing) && (region = grdinfo(names[1], C=true)[1:4])		# Swallow the entire region
 	_region::String = isa(region, String) ? region :
 	                  @sprintf("%.12g/%.12g/%.12g/%.12g", region[1], region[2], region[3], region[4])
 	startswith(_region, "-R") && (_region = _region[3:end])		# Tolerate a region that starts with "-R"
-	(length(findall("/", _region)) != 3) && error("Badly formed region string: $_region")
 
 	desc = assign_description(names, description, sentinel2)
 	cube = grdcut(names[1], R=_region)
-	mat = cube.image
+	mat = isa(cube, GMTimage) ? cube.image : cube.z
 	for k = 2:length(bands)
 		B = grdcut(names[k], R=_region)
-		mat = cat(mat, B.image, dims=3)
+		mat = cat(mat, isa(cube, GMTimage) ? B.image : B.z, dims=3)
 	end
-	cube = mat2img(mat, cube, names=desc)
+	cube = isa(cube, GMTimage) ? mat2img(mat, cube, names=desc) : mat2grid(mat, reg=cube.registration, x=cube.x, y=cube.y, proj4=cube.proj4, wkt=cube.wkt, names=desc)
 	(save != "") && gdaltranslate(cube, dest=save, meta=MTL)
 	return (save != "") ? nothing : cube
 end
@@ -405,7 +406,7 @@ function read_mtl(fname::String, mtl::String=""; get_full::Bool=false)
 		error("This $(fname) is not a valid Landsat8 band file name or of a Landsat 8 cube file.")
 	(ind === nothing) && return nothing		# Only happens when get_full = true and name is no Landsat
 	if (mtl == "")
-		mtl = join(pato, _fname[1:ind[1]] * "MTL.txt")
+		mtl = joinpath(pato, _fname[1:ind[1]] * "MTL.txt")
 		if (!isfile(mtl))
 			lst = filter(x -> endswith(x, "MTL.txt"), readdir((pato == "") ? "." : pato))
 			if (length(lst) == 1 && startswith(lst[1], _fname[1:16]))
@@ -415,6 +416,7 @@ function read_mtl(fname::String, mtl::String=""; get_full::Bool=false)
 			end
 		end
 	end
+	!isfile(mtl) && return nothing			# Not fatal error (if we can live without a MTL).
 
 	(!get_full) && (__fname = splitext(_fname)[1];	band = parse(Int, __fname[ind[1]+2:end]))
 	f = open(mtl);	lines = readlines(f);	close(f)
