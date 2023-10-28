@@ -17,36 +17,36 @@ const KW = Dict{Symbol,Any}
 find_in_dict = GMT.find_in_dict
 
 const Lsat8_desc = Dict(
-	1  => "Band 1 - Coastal aerosol [0.43-0.45]",
-	2  => "Band 2 - Blue [0.45-0.51]",
-	3  => "Band 3 - Green [0.53-0.59]",
-	4  => "Band 4 - Red [0.64-0.67]",
-	5  => "Band 5 - NIR [0.85-0.88]",
-	6  => "Band 6 - SWIR 1 [1.57-1.65]",
-	7  => "Band 7 - SWIR 2 [2.11-2.29]",
-	9  => "Band 9 - Cirrus [1.36-1.38]",
-	10 => "Band 10 - Thermal IR 1 [10.6-11.19]",
-	11 => "Band 11 - Thermal IR 2 [11.50-12.51]")
+	1  => "Band1 - Coastal aerosol [0.43-0.45]",
+	2  => "Band2 - Blue [0.45-0.51]",
+	3  => "Band3 - Green [0.53-0.59]",
+	4  => "Band4 - Red [0.64-0.67]",
+	5  => "Band5 - NIR [0.85-0.88]",
+	6  => "Band6 - SWIR1 [1.57-1.65]",
+	7  => "Band7 - SWIR2 [2.11-2.29]",
+	9  => "Band9 - Cirrus [1.36-1.38]",
+	10 => "Band10 - Thermal IR1 [10.6-11.19]",
+	11 => "Band11 - Thermal IR2 [11.50-12.51]")
 
 const Sentinel2_10m_desc = Dict(
-	2  => "Band 2 - Blue [0.490]",
-	3  => "Band 3 - Green [0.560]",
-	4  => "Band 4 - Red [0.665]",
-	8  => "Band 8 - NIR [0.842]")
+	2  => "Band2 - Blue [0.490]",
+	3  => "Band3 - Green [0.560]",
+	4  => "Band4 - Red [0.665]",
+	8  => "Band8 - NIR [0.842]")
 
-const Sentinel2_20m_desc = Dict(			# Common to both 20 & 60 m
-	1  => "Band 1 - Coastal aerosol [0.443]",	# Actually only available in 60 m.
-	2  => "Band 2 - Blue [0.490]",
-	3  => "Band 3 - Green [0.560]",
-	4  => "Band 4 - Red [0.665]",
-	5  => "Band 5 - Red Edge 1 [0.705]",
-	6  => "Band 6 - Red Edge 2 [0.740]",
-	7  => "Band 7 - Red Edge 3 [0.783]",
-	8  => "Band 8A - Red Edge 4 (NIR) [0.865]",	# ~Landsat8 Band 5
-	9  => "Band 9 - Water vapour [0.945]",
-	10 => "Band 10 - Cirrus [1.375]",		# ~Landsat8 Band 9
-	11 => "Band 11 - SWIR 1 [1.610]",		# ~Landsat8 Band 6
-	12 => "Band 12 - SWIR 2 [2.190]")		# ~Landsat8 Band 7
+const Sentinel2_20m_desc = Dict(				# Common to both 20 & 60 m
+	1  => "Band1 - Coastal aerosol [0.443]",	# Actually only available in 60 m.
+	2  => "Band2 - Blue [0.490]",
+	3  => "Band3 - Green [0.560]",
+	4  => "Band4 - Red [0.665]",
+	5  => "Band5 - Red Edge1 [0.705]",
+	6  => "Band6 - Red Edge2 [0.740]",
+	7  => "Band7 - Red Edge3 [0.783]",
+	8  => "Band8A - Red Edge4 (NIR) [0.865]",	# ~Landsat8 Band 5
+	9  => "Band9 - Water vapour [0.945]",
+	10 => "Band10 - Cirrus [1.375]",			# ~Landsat8 Band 9
+	11 => "Band11 - SWIR1 [1.610]",				# ~Landsat8 Band 6
+	12 => "Band12 - SWIR2 [2.190]")				# ~Landsat8 Band 7
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -345,7 +345,14 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 		mat = cat(mat, isa(cube, GMTimage) ? B.image : B.z, dims=3)
 	end
 	cube = isa(cube, GMTimage) ? mat2img(mat, cube, names=desc) : mat2grid(mat, reg=cube.registration, x=cube.x, y=cube.y, proj4=cube.proj4, wkt=cube.wkt, names=desc)
-	(save != "") && gdaltranslate(cube, dest=save, meta=MTL)
+	if (save != "")
+		_, ext = splitext(save)
+		if (lowercase(ext) == "nc")		# Let save as a nc cube as well
+			gdalwrite(cube, save, bands, dim_name="bands")
+		else
+			gdaltranslate(cube, dest=save, meta=MTL)
+		end
+	end
 	return (save != "") ? nothing : cube
 end
 
@@ -358,7 +365,7 @@ function assign_description(names::Vector{String}, description::Vector{String}, 
 	desc = (!isempty(description)) ? description : Vector{String}(undef, length(names))
 
 	t = splitext(splitdir(names[1])[2])[1]
-	if (isempty(description) && (startswith(t, "LC08_") || startswith(t, "LC8")))	# Have Landsat8 data
+	if (isempty(description) && (startswith(t, "LC")))		# Have Landsat data
 		for k = 1:length(names)
 			t = splitext(splitdir(names[k])[2])[1]
 			ind = findfirst("_B", t)
