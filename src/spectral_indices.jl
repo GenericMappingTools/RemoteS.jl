@@ -3,8 +3,8 @@ const generic_docs = "
 - The second form is more versatile but also more complex to describe.
   - `cube`: Is the file name of a 'cube', a multi-layered file normally created with the [`cutcube`](@ref) function.
      If this file was created with band descriptions one can use the `bands` or the `bandnames` options.
-  - `bands`: _cubes_ created with [`cutcube`](@ref) assign descriptions starting with \"Band 1 ...\" an so on
-    the other bands. So when `bands` is used we search for bands named \"Band band[k]\", where band[k] loops
+  - `bands`: _cubes_ created with [`cutcube`](@ref) assign descriptions starting with \"Band1 ...\" an so on
+    the other bands. So when `bands` is used we search for bands named \"Band'band[k]'\", where band[k] loops
     over all elements of the `bands` vector. WARNING: the elements order in the vector must be sorted in increasing
     wavelength numbers, _i.e._ like the example for the first form.
   - `layers`: Use this option when you are certain of the bands order in the cube or the it doesn't have a bands
@@ -130,7 +130,7 @@ $(generic_docs)
 mndwi(green, swir2; kw...) = sp_indices(swir2, green; index="MNDWI", kw...)
 mndwi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MNDWI", kw...)
 mndwi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
-	helper_si_method(cube, "MNDWI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "swir 2"], kw...)
+	helper_si_method(cube, "MNDWI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -238,7 +238,7 @@ $(generic_docs)
 ndwi2(nir, swir2; kw...) = sp_indices(swir2, nir; index="NDWI2", kw...)
 ndwi2(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI2", kw...)
 ndwi2(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
-	helper_si_method(cube, "NDWI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir 2"], kw...)
+	helper_si_method(cube, "NDWI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -273,7 +273,7 @@ SATVI = ((swir1 - red) / (swir1 + red + L)) * (1.0 + L) - (swir2 / 2.0)
 satvi(red, swir2, swir3; kw...) = sp_indices(red, swir2, swir3; index="SATVI", kw...)
 satvi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SATVI", kw...)
 satvi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
-	helper_si_method(cube, "SATVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "swir 1", "swir 2"], kw...)
+	helper_si_method(cube, "SATVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "swir1", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -309,7 +309,7 @@ $(generic_docs)
 slavi(red, nir, swir2; kw...) = sp_indices(red, nir, swir2; index="SLAVI", kw...)
 slavi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SLAVI", kw...)
 slavi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
-	helper_si_method(cube, "SLAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir", "swir 2"], kw...)
+	helper_si_method(cube, "SLAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 function helper_sp_indices(kwargs...)

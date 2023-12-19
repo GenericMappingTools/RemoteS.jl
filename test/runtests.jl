@@ -14,8 +14,8 @@ truecolor(mat2img(rand(UInt16, 16, 16), noconv=1), mat2img(rand(UInt16, 16, 16),
 @test RemoteS.assign_description(["AC08_B2.TIF", "AC08_B5.TIF"], String[])  == ["AC08_B2", "AC08_B5"]
 @test RemoteS.assign_description(["AC08_B2.TIF", "AC08_B5.TIF"], ["B2", "B5"]) == ["B2", "B5"]
 
-@test reportbands(mat2img(rand(UInt16, 4,4,3), names=["Band 1", "Band 2", "Band 3"]), 3)[1] == "Band 3"
-@test reportbands(mat2img(rand(UInt16, 4,4,3), names=["Band 1", "Band 2", "Band 3"]), layers=[1,3]) == ["Band 1", "Band 3"]
+@test reportbands(mat2img(rand(UInt16, 4,4,3), names=["Band1", "Band2", "Band3"]), 3)[1] == "Band3"
+@test reportbands(mat2img(rand(UInt16, 4,4,3), names=["Band1", "Band2", "Band3"]), layers=[1,3]) == ["Band1", "Band3"]
 
 #sat_tracks(position=true);
 #sat_tracks(position=true, tle=["1 27424U 02022A   21245.83760660  .00000135  00000-0  39999-4 0  9997"; "2 27424  98.2123 186.0654 0002229  67.6025 313.3829 14.57107527 28342"]);
@@ -31,7 +31,7 @@ truecolor("LC08_cube.tiff");	println("	truecolor 1")
 truecolor(cube, [3,2,1]);		println("	truecolor 2")
 truecolor(cube, layers=[3,2,1]); println("	truecolor 3")
 	println("	reportbands 1")
-@test reportbands("LC08_cube.tiff", 2)[1] == "Band 3 - Green [0.53-0.59]"
+@test reportbands("LC08_cube.tiff", 2)[1] == "Band3 - Green [0.53-0.59]"
 	println("	reportbands 2")
 reportbands(cube);
 	println("	subcube")
@@ -46,8 +46,8 @@ R = subcube("LC08_cube.tiff", bandnames=["red"]);	println("	subcube R")
 G = subcube("LC08_cube.tiff", bandnames=["green"]);	println("	subcube G")
 B = subcube("LC08_cube.tiff", bandnames=["blue"]);	println("	subcube B")
 NIR = subcube("LC08_cube.tiff", bandnames=["nir"]);	println("	subcube NIR")
-SW1 = subcube("LC08_cube.tiff", bandnames=["swir 1"]);	println("	subcube SW1")
-SW2 = subcube("LC08_cube.tiff", bandnames=["swir 2"]);	println("	subcube SW2")
+SW1 = subcube("LC08_cube.tiff", bandnames=["swir1"]);	println("	subcube SW1")
+SW2 = subcube("LC08_cube.tiff", bandnames=["swir2"]);	println("	subcube SW2")
 G1 = evi("LC08_cube.tiff"); println("	evi 1")
 G2 = evi(B, R, NIR);		println("	evi 2")
 G3 = evi(cube,[1,3,4]);		println("	evi 3")

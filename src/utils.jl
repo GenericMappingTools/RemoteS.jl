@@ -72,6 +72,17 @@ we search for a made up `bandnames=["red", "green", "blue"]`.
 
 Return an auto-stretched UInt8 RGB GMTimage OR a GMTimage{UInt16,3} if the `raw` option is set to `true`.
 
+    Irgb = truecolor(cube::GMTgrid, [bands|layers::Vector{Int}], [bandnames::Vector{String}], [type=UInt8])
+
+Make an RGB composition of 3 bands from the `cube` file holding a Float32 multi-layered array.
+The band selection can be made with `bands` vector, case in which we will search for bands named "Band band[k]"
+or where the bands description contain the contents of `bandnames`. If none of `bands` or `bandnames` is used
+we search for a made up `bandnames=["red", "green", "blue"]`.
+
+By default we scale the bands to 0-255. Use `type=UInt16` to scale the bands to 0-65535`. Note that this
+will matter only for the guessing of the good limits to perform the histogram stretching.
+
+
 ### Example:
 Make an RGB composite from data in the cube file "LC08__cube.tiff"
 ```julia
@@ -102,7 +113,7 @@ function truecolor(bndR, bndG, bndB)
 	end
 	Io = mat2img(img, I);
 	Io.layout = (isa(bndR, GMT.GMTimage)) ? "T" * bndR.layout[2] * "Ba" : "TRBa"	# This is shitty fragile
-	(isa(bndR, GMT.GMTimage) && startswith(bndR.layout, "BC")) && (Io.layout = "BCBa")	# Hoorible patch that needs to know why.
+	(isa(bndR, GMT.GMTimage) && startswith(bndR.layout, "BC")) && (Io.layout = "BCBa")	# Horrible patch that needs to know why.
 	Io
 end
 
@@ -121,14 +132,14 @@ end
 
 truecolor(cube::GMT.GMTgrid{Float32, 3}, layers::Vector{Int}) = truecolor(cube, layers=layers)
 function truecolor(cube::GMT.GMTgrid{Float32, 3}; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[],
-	               bandnames::Vector{String}=String[])
+	               bandnames::Vector{String}=String[], type::DataType=UInt8)
 	(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bandnames = ["red", "green", "blue"])
 	isempty(layers) && (layers = find_layers(cube, bandnames, bands))
 	(length(layers) != 3) && error("For an RGB composition 'bands' must be a 3 elements array and not $(length(layers))")
-	img = Array{UInt8, 3}(undef, size(cube,1), size(cube,2), 3)
-	img[:,:,1] = rescale(@view(cube[:,:,layers[1]]), stretch=true, type=UInt8)
-	img[:,:,2] = rescale(@view(cube[:,:,layers[2]]), stretch=true, type=UInt8)
-	img[:,:,3] = rescale(@view(cube[:,:,layers[3]]), stretch=true, type=UInt8)
+	img = Array{type, 3}(undef, size(cube,1), size(cube,2), 3)
+	img[:,:,1] = rescale(@view(cube[:,:,layers[1]]), stretch=true, type=type)
+	img[:,:,2] = rescale(@view(cube[:,:,layers[2]]), stretch=true, type=type)
+	img[:,:,3] = rescale(@view(cube[:,:,layers[3]]), stretch=true, type=type)
 	Io = mat2img(img, cube);	Io.layout = "TRBa"
 	Io
 end
@@ -223,7 +234,7 @@ function find_layers(fname::String; bands::Vector{Int}=Int[], layers::Vector{Int
 	(all(desc .== "")) && error("This cube file has no band descriptions so cannot use the 'band' or 'bandnames' options.")
 	(alllayers) && return collect(1:nbands), desc	# OK, just return them ALL
 
-	(!isempty(bands)) && (bandnames = ["Band $(bands[k])" for k = 1:length(bands)])		# Create a bandnames vector
+	(!isempty(bands)) && (bandnames = ["Band$(bands[k])" for k = 1:length(bands)])		# Create a bandnames vector
 	_layers = helper_find_layers(lowercase.(desc), bandnames)
 	return _layers, desc
 end
@@ -484,7 +495,7 @@ function parse_lsat8_file(fname::String; band::Int=0, layer::Int=0, mtl::String=
 
 	if (nbands > 1)
 		if (0 < layer < 12)			# Try to find which Band is at layer 'layer'
-			((_band = tryparse(Int, split(desc[layer])[2])) === nothing) && @warn("Failed to find Band with description in layer $layout")
+			((_band = tryparse(Int, split(desc[layer])[1][5:end])) === nothing) && @warn("Failed to find Band with description in layer $layer")
 			(_band !== nothing) && (band = _band)
 		end
 		(band < 1) && error("The `band` option must contain the wished Landsat 8 band number. Use `band=N` to set it.")
@@ -492,7 +503,7 @@ function parse_lsat8_file(fname::String; band::Int=0, layer::Int=0, mtl::String=
 		MTL = ((ind = findfirst(startswith.(meta, "MTL=GROUP ="))) !== nothing) ? meta[ind][5:end] :
 			error("Data in a cube (> one layer) must contain the MTL info in Metadata and this one does not.")
 
-		((band_layer = findfirst(startswith.(desc, "Band $band"))) === nothing) && error("Band $band not found in this cube")
+		((band_layer = findfirst(startswith.(desc, "Band$band"))) === nothing) && error("Band $band not found in this cube")
 		pars = parse_mtl(split(MTL, "\n"), band)
 	else
 		pars = read_mtl(fname, mtl)		# No 'band' here because it's suposed to be findable in 'fname'
