@@ -234,7 +234,7 @@ function find_layers(fname::String; bands::Vector{Int}=Int[], layers::Vector{Int
 	(all(desc .== "")) && error("This cube file has no band descriptions so cannot use the 'band' or 'bandnames' options.")
 	(alllayers) && return collect(1:nbands), desc	# OK, just return them ALL
 
-	(!isempty(bands)) && (bandnames = ["Band $(bands[k])" for k = 1:length(bands)])		# Create a bandnames vector
+	(!isempty(bands)) && (bandnames = ["Band$(bands[k])" for k = 1:length(bands)])		# Create a bandnames vector
 	_layers = helper_find_layers(lowercase.(desc), bandnames)
 	return _layers, desc
 end
