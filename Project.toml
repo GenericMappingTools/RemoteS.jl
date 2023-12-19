@@ -1,7 +1,7 @@
 name = "RemoteS"
 uuid = "26020ff4-e92a-488e-a723-09c28e89e04a"
 authors = ["Joaquim Luis <jmfluis@gmail.com>"]
-version = "1.1.0"
+version = "1.1.1"
 
 [deps]
 GMT = "5752ebe1-31b9-557e-87aa-f909b540aa54"
@@ -21,7 +21,7 @@ test = ["Test"]
 
 [compat]
 julia = "1.6"
-GMT = "1"
+GMT = "1.9"
 PrecompileTools = "1.0"
 SatelliteToolboxTle = "1"
 SatelliteToolboxPropagators = "0.3"
