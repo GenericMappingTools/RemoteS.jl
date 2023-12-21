@@ -154,7 +154,7 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 """
-subcube(cube::String; bands=Int[], bandnames=String[], layers=Int[])
+    subcube(cube::String; bands=Int[], bandnames=String[], layers=Int[])
 
 Extracts a subcube from `cube` with the layers in the `bands` vector, case in which we will search for bands
 named "Band band[k]", or those whose names correspond (even partially and case insensitive) to the descriptions
@@ -162,6 +162,10 @@ in `bandnames` string vector. This means that the options `bands` and `bandnames
 with bands description. The `layers` option blindly extract the `cube` planes listed in the `layer` vector.
 
 Returns a GMTimage
+
+    subcube(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}}; bands=Int[], bandnames=String[], layers=Int[])
+
+Does the same but from an already in memory cube. Returns a type equal to the input type. No views, a data copy.
 
 ### Example
 Extracts the Red, Green and Blue layers from a Landsat 8 cube created with `cutcube`
@@ -172,13 +176,21 @@ Irgb = subcube("LC08__cube.tiff", bandnames = ["red", "green", "blue"])
 """
 function subcube(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[])
 	# This is also used as a helper function in 'truecolor' and the radiometric indices functions.
-	(isempty(bands) && isempty(bandnames) && isempty(layers)) && error("Must specify at least one way to select layers.")
-	(isempty(layers)) && (layers = find_layers(cube, bands=bands, bandnames=bandnames)[1])
+	#(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bands = collect(1:length(reportbands(cube))))	# Read them all
+	alllayers = (isempty(bands) && isempty(bandnames) && isempty(layers)) ? true : false	# Read them all
+	(isempty(layers)) && (layers = find_layers(cube, bands=bands, bandnames=bandnames, alllayers=alllayers)[1])
 	gmtread(cube, band=layers, layout="TRBa")		# This one is still UInt16
 end
 
+function subcube(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+                 bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[])
+	(isempty(bands) && isempty(bandnames) && isempty(layers)) && return cube	# Stupid but silently ignore it.
+	(isempty(layers)) && (layers = find_layers(cube, bandnames, bands))
+	slicecube(cube, layers)
+end
+
 # ----------------------------------------------------------------------------------------------------------
-function find_layers(cube::GMT.GMTimage{UInt16, 3}, list::Vector{Int}, n_layers::Int)
+function find_layers(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}}, list::Vector{Int}, n_layers::Int)
 	# This function is not finished
 	if (maximum(list) < 200)		# The list of bands to pass to the caling fun
 		(maximum(list) > size(cube,3)) && error("Not enough bands to satisfy the bands list request.")

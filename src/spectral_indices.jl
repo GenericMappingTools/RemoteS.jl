@@ -35,6 +35,13 @@ function helper_si_method(cube::String, index::String; bands::Vector{Int}=Int[],
 	sc = subcube(cube, bands=bands, layers=layers, bandnames=bandnames)
 	sp_indices(sc, collect(1:size(sc,3)); index=index, kw...)	# Here we know that the layers are all of those in scube
 end
+# Method for in memory cubes
+function helper_si_method(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}}, index::String;
+                          bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], defbandnames::Vector{String}=String[], kw...)
+	(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bandnames = defbandnames)
+	lay = !isempty(layers) ? layers : find_layers(cube, bandnames, bands)
+	sp_indices(cube, lay; index=index, kw...)
+end
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -45,7 +52,9 @@ Green cholorphyl index. Wu et al 2012.
 CLG = (redEdge3)/(green)-1 
 """
 clg(green, redEdge3; kw...) = sp_indices(green, redEdge3; index="CLG", kw...)
-clg(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="CLG", kw...)
+clg(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "CLG"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "redEdge3"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -56,7 +65,9 @@ RedEdge cholorphyl index. Clevers and Gitelson 2013.
 CLRE = (redEdge3)/(redEdge1)-1
 """
 clre(redEdge1, redEdge3; kw...) = sp_indices(redEdge1, redEdge3; index="CLRE", kw...)
-clre(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="CLRE", kw...)
+clre(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "CLRE"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["redEdge1", "redEdge3"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -74,8 +85,10 @@ $(generic_docs)
 
 """
 evi(blue, red, nir; kw...) = sp_indices(blue, red, nir; index="EVI", kw...)
-evi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="EVI", kw...)
 evi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "EVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["blue", "red", "nir"], kw...)
+evi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "EVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["blue", "red", "nir"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -92,8 +105,10 @@ EVI2 = G * ((nir - red) / (nir + 2.4 * red ))
 $(generic_docs)
 """
 evi2(red, nir; kw...) = sp_indices(red, nir; index="EVI2", kw...)
-evi2(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="EVI2", kw...)
 evi2(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "EVI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir"], kw...)
+evi2(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "EVI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -110,8 +125,10 @@ GNDVI = (nir - green) / (nir + green)
 $(generic_docs)
 """
 gndvi(green, nir; kw...) = sp_indices(green, nir; index="GNDVI", kw...)
-gndvi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="GNDVI", kw...)
 gndvi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "GNDVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "nir"], kw...)
+gndvi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "GNDVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "nir"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -128,8 +145,10 @@ MNDWI = (green-swir2) / (green+swir2)
 $(generic_docs)
 """
 mndwi(green, swir2; kw...) = sp_indices(swir2, green; index="MNDWI", kw...)
-mndwi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MNDWI", kw...)
 mndwi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "MNDWI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "swir2"], kw...)
+mndwi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "MNDWI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -142,6 +161,9 @@ MTCI = (redEdge2-redEdge1) / (redEdge1-red)
 """
 mtci(red, redEdge1, redEdge2; kw...) = sp_indices(red, redEdge1, redEdge2; index="MTCI", kw...)
 mtci(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MTCI", kw...)
+mtci(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "MTCI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "redEdge1", "redEdge2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -153,7 +175,9 @@ MCARI = (redEdge1 - red - 0.2 * (redEdge1 - green)) * (redEdge1 / red)
 """
 # Sentinel-2 Band 5 (VNIR), Band 4 (Red) and Band 3 (Green).
 mcari(green, red, redEdge1; kw...) = sp_indices(green, red, redEdge1; index="MCARI", kw...)
-mcari(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="MCARI", kw...)
+mcari(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+      bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "MCARI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "red", "redEdge1"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -169,8 +193,10 @@ MSAVI = nir + 0.5 - (0.5 * sqrt(pow(2.0 * nir + 1.0, 2) - 8.0 * (nir - (2.0 * re
 $(generic_docs)
 """
 msavi(red, nir; kw...) = sp_indices(red, nir; index="MSAVI", kw...)
-msavi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="MSAVI", kw...)
 msavi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "MSAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir"], kw...)
+msavi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "MSAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -182,7 +208,9 @@ Normalised Burn Ratio Index. Garcia 1991
 NBRI = (nir - swir3) / (nir + swir3)
 """
 nbri(nir, swir3; kw...) = sp_indices(swir3, nir; index="NBRI", kw...)
-nbri(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NBRI", kw...)
+nbri(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NBRI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir3"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -199,8 +227,10 @@ NDVI = (nir - red) / (nir + red)
 $(generic_docs)
 """
 ndvi(red, nir; kw...) = sp_indices(red, nir; index="NDVI", kw...)
-ndvi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDVI", kw...)
 ndvi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NDVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir"], kw...)
+ndvi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "NDVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -217,8 +247,10 @@ NDWI = (green - nir)/(green + nir)
 $(generic_docs)
 """
 ndwi(green, nir; kw...) = sp_indices(nir, green; index="NDWI", kw...)
-ndwi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI", kw...)
 ndwi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NDWI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "nir"], kw...)
+ndwi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "NDWI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "nir"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -236,8 +268,10 @@ NDWI2 = (nir - swir2)/(nir + swir2)
 $(generic_docs)
 """
 ndwi2(nir, swir2; kw...) = sp_indices(swir2, nir; index="NDWI2", kw...)
-ndwi2(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDWI2", kw...)
 ndwi2(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NDWI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
+ndwi2(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "NDWI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -249,7 +283,9 @@ Normalized difference red edge index. Gitelson and Merzlyak 1994
 NDREI1 = (redEdge2 - redEdge1) / (redEdge2 + redEdge1)
 """
 ndrei1(redEdge1, redEdge2; kw...) = sp_indices(redEdge1, redEdge2; index="NDREI1", kw...)
-ndrei1(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDREI1", kw...)
+ndrei1(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+       bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NDREI1"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["redEdge1", "redEdge2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -260,7 +296,9 @@ Normalized difference red edge index 2. Barnes et al 2000
 NDREI2 = (redEdge3 - redEdge1) / (redEdge3 + redEdge1)
 """
 ndrei2(redEdge1, redEdge3; kw...) = sp_indices(redEdge1, redEdge3; index="NDREI2", kw...)
-ndrei2(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="NDREI2", kw...)
+ndrei2(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+       bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NDREI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["redEdge1", "redEdge2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -271,9 +309,11 @@ Soil adjusted total vegetation index. Marsett 2006
 SATVI = ((swir1 - red) / (swir1 + red + L)) * (1.0 + L) - (swir2 / 2.0)
 """
 satvi(red, swir2, swir3; kw...) = sp_indices(red, swir2, swir3; index="SATVI", kw...)
-satvi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SATVI", kw...)
 satvi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "SATVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "swir1", "swir2"], kw...)
+satvi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "SATVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "swir2", "swir3"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -289,8 +329,10 @@ SAVI = (nir - red) * (1.0 + L) / (nir + red + L)
 $(generic_docs)
 """
 savi(red, nir; kw...) = sp_indices(red, nir; index="SAVI", kw...)
-savi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 2); index="SAVI", kw...)
 savi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "SAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir"], kw...)
+savi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "SAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -307,8 +349,10 @@ SLAVI = nir / (red + swir2)
 $(generic_docs)
 """
 slavi(red, nir, swir2; kw...) = sp_indices(red, nir, swir2; index="SLAVI", kw...)
-slavi(cube::GMT.GMTimage{UInt16, 3}, bnds; kw...) = sp_indices(cube, find_layers(cube, bnds, 3); index="SLAVI", kw...)
 slavi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "SLAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir", "swir2"], kw...)
+slavi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "SLAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
@@ -347,7 +391,7 @@ function sp_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="
 	sp_indices(Bnd1, Bnd2, Bnd3; index=index, kwargs...)
 end
 
-function sp_indices(cube::GMT.GMTimage{UInt16, 3}, bands::Vector{Int}; index::String="", kw...)
+function sp_indices(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}}, bands::Vector{Int}; index::String="", kw...)
 	# This method recieves the cube and a vector with the bands list and calls the worker with @view
 	mask, _, classes, _, save_name, dbg = helper_sp_indices(kw...)	# Do this first because if it errors no point in continuing
 	(dbg) && println(cube.names)
