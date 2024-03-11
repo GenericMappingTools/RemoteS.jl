@@ -348,8 +348,21 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 		end
 	end
 	# Now test if any of the file names, either passed in or generated here, do not exist
+	k = 1
 	for name in names
-		!isfile(name) && error("File name $name does not exist. Must stop here.")
+		if (!isfile(name))
+			if (startswith(name, "LC0") && template[end-3:end-2] == "SR")	# For Landsat 9 termal bands are now _ST_B10
+				name = replace(name, "_SR_B" => "_ST_B")
+				if (isfile(name))
+					names[k] = name
+				else
+					error("File name $name does not exist. Must stop here.")
+				end
+			else
+				error("File name $name does not exist. Must stop here.")
+			end
+		end
+		k += 1
 	end
 	MTL = read_mtl(names[1], mtl, get_full=true)
 	(MTL !== nothing) && (MTL = ["MTL=" * join(MTL, "\n")])
