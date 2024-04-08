@@ -7,7 +7,7 @@ The _cube_ was made with this instructions (but they would only work if you had 
 
 ```path = C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/LC08_L1TP_204033_20210525_20210529_02_T1_B;```
 
-```cube = cutcube(bands=[2,3,4,5,6,7,10], template=pato, region=(485490,531060,4283280,4330290), save=\"LC08_L1TP_20210525_02_cube.tiff\")```
+```cube = cutcube(bands=[2,3,4,5,6,7,10], template=path, region=(485490,531060,4283280,4330290), save="LC08_L1TP_20210525_02_cube.tiff")```
 
 This creates a 3D GeoTIFF file with the companion MTL file saved in it as Metadata. We can see the band info by running the ```reportbands``` function. That information is quite handy because we can, for example, just refer to the _red_ band and it will figure out which layer of the cube contains the Red band.
 

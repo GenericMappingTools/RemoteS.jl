@@ -11,7 +11,7 @@ Since the data _cube_ holds in it the information about each band, computing the
 
 ```Julia
 using RemoteS, GMT
-N = ndvi("c:/v/LC08_L1TP_20210525_02_cube.tiff");
+N = ndvi("LC08_L1TP_20210525_02_cube.tiff");
 imshow(N, colorbar=true)
 ```
 
@@ -23,7 +23,7 @@ The spectral indices functions all have a ``threshold`` value that will NaNify a
 Below we wipe out all values < 0.4 to show only the _Green stuff_
 
 ```Julia
-N = ndvi("c:/v/LC08_L1TP_20210525_02_cube.tiff", threshold=0.4);
+N = ndvi("LC08_L1TP_20210525_02_cube.tiff", threshold=0.4);
 imshow(N, dpi=150, colorbar=1)
 ```
 
@@ -40,7 +40,7 @@ and see what we get.
 
 ```Julia
 # Compute a mask based on the condition that threshold >= 0.4
-mask = ndvi("c:/v/LC08_L1TP_20210525_02_cube.tiff", threshold=0.4, mask=true);
+mask = ndvi("LC08_L1TP_20210525_02_cube.tiff", threshold=0.4, mask=true);
 ```
 
 To mask out the true color image the best way is to use the ```mask``` as the alpha band.
@@ -48,15 +48,15 @@ To make it easier we will recalculate the true color image here.
 
 ```Julia
 # Recalculate the true color image
-Irgb = truecolor("c:/v/LC08_L1TP_20210525_02_cube.tiff");
+Irgb = truecolor("LC08_L1TP_20210525_02_cube.tiff");
 
 # Apply the mask
-image_alpha!(Irgb, mask);
+image_alpha!(Irgb, alpha_band=mask, burn=1);
 
-# And save it to disk so that we can visualize the result
-gmtwrite("c:/v/rgb_masked.tiff", Irgb)
+# And save it to disk
+gmtwrite("rgb_masked.tiff", Irgb)
 
-imshow("c:/v/rgb_masked.tiff")
+imshow(Irgb)
 ```
 
 ```@raw html
@@ -70,16 +70,20 @@ To achieve that we use the ``mask`` option with a negative number.
 
 ```Julia
 # Compute a mask based on the condition that threshold >= 0.4
-mask_inv = ndvi("c:/v/LC08_L1TP_20210525_02_cube.tiff", threshold=0.4, mask=-1);
-image_alpha!(Irgb, mask_inv);
-gmtwrite("c:/v/rgb_inv_masked.tiff", Irgb)
+mask_inv = ndvi("LC08_L1TP_20210525_02_cube.tiff", threshold=0.4, mask=-1)
+;
+# Recompute the true color image that was modified by the ``image_alpha!`` step above
+Irgb = truecolor("LC08_L1TP_20210525_02_cube.tiff");
+
+image_alpha!(Irgb, alpha_band=mask_inv, burn=1);
+gmtwrite("rgb_inv_masked.tiff", Irgb)
 ```
 
 Plot the green vegetation that passed the NDVI threshold test and the other part, side by side.
 
 ```Julia
-grdimage("c:/v/rgb_masked.tiff", region=(502380,514200,4311630,4321420), figsize=8, frame=:bare)
-grdimage!("c:/v/rgb_inv_masked.tiff", figsize=8, projection=:linear, xshift=8, frame=:bare, show=true)
+grdimage("rgb_masked.tiff", region=(502380,514200,4311630,4321420), figsize=8, frame=:bare)
+grdimage!("rgb_inv_masked.tiff", figsize=8, projection=:linear, xshift=8, frame=:bare, show=true)
 ```
 
 ```@raw html
