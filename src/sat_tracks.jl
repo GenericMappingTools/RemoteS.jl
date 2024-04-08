@@ -238,7 +238,7 @@ function clip_orbits(track, bb::Vector{<:Real})
 	D = Vector{GMTdataset}(undef, length(begin_seg))
 	colnames, prj4 = isa(track, Vector) ? (track[1].colnames, track[1].proj4) : (track.colnames, track.proj4)
 	for k = 1:length(begin_seg)
-		D[k] = GMTdataset(isa(segments, Vector) ? segments[1][begin_seg[k]:end_seg[k], :] : segments[begin_seg[k]:end_seg[k], :], Float64[], Float64[], Dict{String, String}(), colnames, String[], "", String[], prj4, "", 0, GMT.Gdal.wkbLineString)
+		D[k] = GMTdataset(isa(segments, Vector) ? segments[1][begin_seg[k]:end_seg[k], :] : segments[begin_seg[k]:end_seg[k], :], Float64[], Float64[], GMT.DictSvS(), colnames, String[], "", String[], prj4, "", 0, GMT.Gdal.wkbLineString)
 	end
 	D[1].proj4 = GMT.prj4WGS84
 	D
