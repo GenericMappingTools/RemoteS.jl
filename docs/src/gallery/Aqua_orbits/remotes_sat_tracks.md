@@ -6,7 +6,7 @@ will be accurate for the month of September 2021. For other dates it needs an up
 Orbits calculation rely on the [SatelliteToolbox](https://github.com/JuliaSpace/SatelliteToolbox.jl) package(s). Orbits are calculated with the help of the so called Two Line Element files that unfortunatelly have _accuracy validity_ quite short (around one month). They can be obtainded from the [Space Track](https://www.space-track.org) site.
 
 ```Julia
-using RemoteS, GMT, SatelliteToolbox
+using RemoteS, GMT, SatelliteToolboxTle, SatelliteToolboxPropagators, SatelliteToolboxTransformations
 
 # The AQUA orbits TLE contents for the month of September 2021 
 tle1 = "1 27424U 02022A   21245.83760660  .00000135  00000-0  39999-4 0  9997";
