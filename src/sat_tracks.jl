@@ -35,6 +35,9 @@ will be accurate for the month of September 2021. For other dates it needs an up
 and the orbit track can be visualized with
 
     imshow(orb,  proj=:Robinson, region=:global, coast=true)
+
+WARNING: This function depends on the SatelliteToolbox extension that is not loaded by default. Load it with:
+- ``using RemoteS, SatelliteToolboxTle, SatelliteToolboxPropagators, SatelliteToolboxTransformations``
 """
 function sat_tracks(; geocentric::Bool=false, tiles::Bool=false, position::Bool=false, kwargs...)
 	!(isdefined(Main, :SatelliteToolboxPropagators)) &&
