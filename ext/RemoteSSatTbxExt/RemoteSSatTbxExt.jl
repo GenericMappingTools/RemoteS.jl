@@ -45,7 +45,7 @@ module RemoteSSatTbxExt
 		end
 	
 		if ((val_tle = find_in_dict(d, [:tle_obj])[1]) !== nothing)  tle = val_tle	# Some other fun already got it
-		else                                                         tle = RemoteS.loadTLE(d)
+		else                                                         tle = RemoteS.loadTLE_ext(d)
 		end
 		orbp = SatelliteToolboxPropagators.Propagators.init(Val(:SGP4), tle)
 	
