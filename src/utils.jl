@@ -66,7 +66,7 @@ Return an auto-stretched UInt8 RGB GMTimage
     Irgb = truecolor(cube::String, [bands::Vector{Int}], [bandnames::Vector{String}], [raw=false])
 
 Make an RGB composition of 3 bands from the `cube` file holding a UInt16 multi-layered array (often created with `cutcube`)
-The band selection can be made with `bands` vector, case in which we will search for bands named "Band band[k]"
+The band selection can be made with `bands` vector, case in which we will search for bands named "Band[k]"
 or where the bands description contain the contents of `bandnames`. If none of `bands` or `bandnames` is used
 we search for a made up `bandnames=["red", "green", "blue"]`.
 
@@ -75,7 +75,7 @@ Return an auto-stretched UInt8 RGB GMTimage OR a GMTimage{UInt16,3} if the `raw`
     Irgb = truecolor(cube::GMTgrid, [bands|layers::Vector{Int}], [bandnames::Vector{String}], [type=UInt8])
 
 Make an RGB composition of 3 bands from the `cube` file holding a Float32 multi-layered array.
-The band selection can be made with `bands` vector, case in which we will search for bands named "Band band[k]"
+The band selection can be made with `bands` vector, case in which we will search for bands named "Band[k]"
 or where the bands description contain the contents of `bandnames`. If none of `bands` or `bandnames` is used
 we search for a made up `bandnames=["red", "green", "blue"]`.
 
@@ -115,6 +115,29 @@ function truecolor(bndR, bndG, bndB)
 	Io.layout = (isa(bndR, GMT.GMTimage)) ? "T" * bndR.layout[2] * "Ba" : "TRBa"	# This is shitty fragile
 	(isa(bndR, GMT.GMTimage) && startswith(bndR.layout, "BC")) && (Io.layout = "BCBa")	# Horrible patch that needs to know why.
 	Io
+end
+
+# ----------------------------------------------------------------------------------------------------------
+# This method fall into the description of the general 'truecolor(bndR, bndG, bndB)'
+function truecolor(bandR::T, bandG::T, bandB::T) where {T<:Union{GMTgrid{<:AbstractFloat, 2},Matrix{<:AbstractFloat}}}
+	@assert size(bandR) == size(bandG) == size(bandB)
+	n1 = length(bandR);		n2 = 2 * n1;	n3 = 3 * n1
+	img = Array{UInt8}(undef, size(bandR,1), size(bandR,2), 3)
+	mima = isa(bandR, GMTgrid) ? bandR.range[5:6] : GMT.entrema_nan(bndR)
+	mima == [0.0,1.0] ? (for k = 1:n1 img[k] = round(UInt8, bandR[k] * 255) end) :
+		(d = 255.0 / (mima[2] - mima[1]); for k = 1:n1 img[k] = round(UInt8, (bandR[k] - mima[1]) * d) end)
+
+	mima = isa(bandG, GMTgrid) ? bandG.range[5:6] : GMT.entrema_nan(bndG)
+	n = 0
+	mima == [0.0,1.0] ? (for k = n1+1:n2 img[k] = round(UInt8, bandG[n+=1] * 255) end) :
+		(d = 255.0 / (mima[2] - mima[1]); for k = n1+1:n2 img[k] = round(UInt8, (bandG[n+=1] - mima[1]) * d) end)
+
+	mima = isa(bandB, GMTgrid) ? bandB.range[5:6] : GMT.entrema_nan(bndB)
+	n = 0
+	mima == [0.0,1.0] ? (for k = n2+1:n3 img[k] = round(UInt8, bandB[n+=1] * 255) end) :
+		(d = 255.0 / (mima[2] - mima[1]); for k = n2+1:n3 img[k] = round(UInt8, (bandB[n+=1] - mima[1]) * d) end)
+
+	return isa(bandR, GMTgrid) ? mat2img(img, bandR) : mat2img(img)
 end
 
 truecolor(cube::GMT.GMTimage{UInt16, 3}, layers::Vector{Int}) = truecolor(cube, layers=layers)
@@ -618,7 +641,7 @@ $dns_doc
 # Example:
 Compute the radiance TOA of Band 2 file.
 ```
-R = dn2temperature("LC08_L1TP_204033_20210525_20210529_02_T1_B2.TIF")
+R = dn2radiance("LC08_L1TP_204033_20210525_20210529_02_T1_B2.TIF")
 ```
 """
 function dn2radiance(fname::String; band::Int=0, bandname::String="", bandnames::String="", mtl::String="", save::String="")
@@ -675,6 +698,7 @@ function dn2aux(fname::String, fun::String; band::Int=0, bandname::String="", ba
 		end
 		G = mat2grid(mat, G)
 		G.names = bdnames
+		G.v = collect(1:length(bdnames))
 	else
 		G = helper_fun(fname, band, bandname, bandnames, mtl)
 	end

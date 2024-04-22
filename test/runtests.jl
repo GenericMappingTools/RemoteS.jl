@@ -81,3 +81,6 @@ G2 = slavi(R, NIR, SW2);	println("	slavi 2")
 G3 = slavi(cube);			println("	slavi 3")
 @test G1.range[5:6] == G2.range[5:6]
 @test G1.range[5:6] == G3.range[5:6]
+
+G1 = mat2grid(rand(Float32, 16,16)); G2 = mat2grid(rand(Float32, 16,16)); G3 = mat2grid(rand(Float32, 16,16));
+I = truecolor(G1,G2,G3);
