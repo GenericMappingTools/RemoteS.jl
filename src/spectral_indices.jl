@@ -205,12 +205,12 @@ msavi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
 
 Normalised Burn Ratio Index. Garcia 1991
 
-NBRI = (nir - swir3) / (nir + swir3)
+NBRI = (nir - swir2) / (nir + swir2)
 """
-nbri(nir, swir3; kw...) = sp_indices(swir3, nir; index="NBRI", kw...)
+nbri(nir, swir2; kw...) = sp_indices(swir2, nir; index="NBRI", kw...)
 nbri(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
      bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
-	helper_si_method(cube, "NBRI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir3"], kw...)
+	helper_si_method(cube, "NBRI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
