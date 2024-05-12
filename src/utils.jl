@@ -391,7 +391,7 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 	(MTL !== nothing) && (MTL = ["MTL=" * join(MTL, "\n")])
 
 	# Little parsing of the -R string but does not test if W < E & S < N
-	(region === nothing) && (region = grdinfo(names[1], C=true)[1:4])		# Swallow the entire region
+	(region === nothing) && (region::Vector{Float64} = grdinfo(names[1], C=true)[1:4])		# Swallow the entire region
 	_region::String = isa(region, String) ? region :
 	                  @sprintf("%.12g/%.12g/%.12g/%.12g", region[1], region[2], region[3], region[4])
 	startswith(_region, "-R") && (_region = _region[3:end])		# Tolerate a region that starts with "-R"
@@ -535,7 +535,9 @@ function parse_lsat8_file(fname::String; band::Int=0, layer::Int=0, mtl::String=
 	meta = GMT.Gdal.GDALGetMetadata(ds.ptr, C_NULL)
 	if (nbands > 1)
 		desc = Vector{String}(undef,0)
-		[append!(desc, [GMT.Gdal.GDALGetDescription(GMT.Gdal.GDALGetRasterBand(ds.ptr, bd))]) for bd = 1:nbands]
+		for bd = 1:nbands
+			append!(desc, [GMT.Gdal.GDALGetDescription(GMT.Gdal.GDALGetRasterBand(ds.ptr, bd))])
+		end
 	else
 		desc = [""]
 	end
@@ -557,7 +559,7 @@ function parse_lsat8_file(fname::String; band::Int=0, layer::Int=0, mtl::String=
 		pars = read_mtl(fname, mtl)		# No 'band' here because it's suposed to be findable in 'fname'
 		band_layer = 0
 	end
-	band_layer, pars
+	band_layer, pars, nbands
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -567,10 +569,10 @@ function helper_dns(fname::String, band::Int, bandname::String, bandnames::Strin
 	(bandname == "" && bandnames != "") && (bandname = bandnames)	# Accept singular and plural name
 	if (bandname != "")
 		layers, = find_layers(fname, bandnames=[bandname])
-		band_layer, pars = parse_lsat8_file(fname, layer=layers[1], mtl=mtl)
+		band_layer, pars, = parse_lsat8_file(fname, layer=layers[1], mtl=mtl)
 		(band_layer != layers[1]) && error("Internal error. $band_layer and $(layers[1]) should be equal.")
 	else
-		band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
+		band_layer, pars, = parse_lsat8_file(fname, band=band, mtl=mtl)
 	end
 	band_layer, pars
 end
@@ -606,7 +608,7 @@ T = dn2temperature(cube, band=10)
 ```
 """
 function dn2temperature(fname::String; band::Int=0, mtl::String="", save::String="")
-	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
+	band_layer, pars, = parse_lsat8_file(fname, band=band, mtl=mtl)
 	(pars.band < 10) && throw(ArgumentError("Brightness temperature is only for bands 10 or 11. Not this one: $(pars.band)"))
 	I, indNaN, o = helper1_sats(fname, band_layer)
 	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
@@ -683,8 +685,11 @@ function dn2aux(fname::String, fun::String; band::Int=0, bandname::String="", ba
 		helper_dns_op(I, fact_x, fact_a, indNaN, o)
 	end
 
+	_band_layer, _pars, n_bands = parse_lsat8_file(fname, band=band, mtl=mtl)	# Cannot repeat 'pars' else Box.core
+	(_band_layer == 0 && n_bands == 1) && (band::Int = _pars.band)
+
 	helper_fun = (fun == "radiance") ? inn_helper_rad : inn_helper_ref		# Which helper function to use.
-	if (band == 0 && bandname == "" && bandnames == "")
+	if (band == 0 && bandname == "" && bandnames == "")						# Reading a cube
 		bdnames = reportbands(fname)
 		if (fun == "reflect")
 			((ind = findfirst(contains.(bdnames, "Band 10"))) !== nothing) && (deleteat!(bdnames, ind))
@@ -715,7 +720,7 @@ Computes the radiance-at-surface of Landsat8 band using the COST model.
 $dns_doc
 """
 function reflectance_surf(fname::String; band::Int=0, mtl::String="", save::String="")
-	band_layer, pars = parse_lsat8_file(fname, band=band, mtl=mtl)
+	band_layer, pars, = parse_lsat8_file(fname, band=band, mtl=mtl)
 	(pars.band >= 10) && error("Computing Surface Reflectance for Thermal bands is not defined.")
 	I, indNaN, o = helper1_sats(fname, band_layer)
 
