@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Cloud-Native HLS dat · RemoteS.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../../assets/documenter.js"></script><script src="../../../siteinfo.js"></script><script src="../../../../versions.js"></script><link href="../../../assets/custom.css" rel="stylesheet" type="text/css"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">RemoteS.jl</span></div><form class="docs-search" action="../../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><span class="tocitem">Gallery</span><ul><li><a class="tocitem" href="../../Aqua_orbits/remotes_sat_tracks/">Aqua orbits</a></li><li><a class="tocitem" href="../../Aqua_sst/remotes_L2_SST/">Aqua SST</a></li><li class="is-active"><a class="tocitem" href>Cloud-Native HLS dat</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#.-Importing-packages-1"><span>1. Importing packages</span></a></li><li class="toplevel"><a class="tocitem" href="#.-Navigating-the-CMR-STAC-API-1"><span>2. Navigating the CMR-STAC API</span></a></li><li><a class="tocitem" href="#.-STAC-Collection:-Extension-of-STAC-Catalog-containing-additional-information-that-describe-the-STAC-Items-in-that-Collection.-1"><span>3. STAC Collection: Extension of STAC Catalog containing additional information that describe the STAC Items in that Collection.</span></a></li><li><a class="tocitem" href="#.-STAC-Item:-Represents-data-and-metadata-assets-that-are-spatiotemporally-coincident-1"><span>4. STAC Item: Represents data and metadata assets that are spatiotemporally coincident</span></a></li><li class="toplevel"><a class="tocitem" href="#.-CMR-STAC-API:-Searching-for-Items-1"><span>3. CMR-STAC API: Searching for Items</span></a></li><li><a class="tocitem" href="#.1-Spatial-Querying-via-Bounding-Box-1"><span>3.1 Spatial Querying via Bounding Box</span></a></li><li><a class="tocitem" href="#.2-Temporal-Querying-1"><span>3.2 Temporal Querying</span></a></li><li class="toplevel"><a class="tocitem" href="#.-Extracting-HLS-COGs-from-the-Cloud-1"><span>4. Extracting HLS COGs from the Cloud</span></a></li><li><a class="tocitem" href="#.1-Subset-by-Band-1"><span>4.1 Subset by Band</span></a></li><li><a class="tocitem" href="#Sentinel-2:-1"><span>Sentinel 2:</span></a></li><li><a class="tocitem" href="#.2-Load-a-Spatially-Subset-HLS-COG-into-Memory-1"><span>4.2 Load a Spatially Subset HLS COG into Memory</span></a></li><li class="toplevel"><a class="tocitem" href="#.-Processing-HLS-Data-1"><span>5. Processing HLS Data</span></a></li><li class="toplevel"><a class="tocitem" href="#.-Automation-1"><span>6. Automation</span></a></li></ul></li><li><a class="tocitem" href="../../L8cube_img/remotes_L8_cube_img/">Landsat 8 images</a></li><li><a class="tocitem" href="../../L8cube_ndvi/remotes_L8_NDVI/">Landsat 8 NDVI</a></li></ul></li><li><a class="tocitem" href="../../../">Index</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Gallery</a></li><li class="is-active"><a href>Cloud-Native HLS dat</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Cloud-Native HLS dat</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/GenericMappingTools/RemoteS.jl/blob/master/docs/src/gallery/HLS/cloud-native-hls-data.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Getting-Started-with-Cloud-Native-HLS-Data-in-Julia:-1"><a class="docs-heading-anchor" href="#Getting-Started-with-Cloud-Native-HLS-Data-in-Julia:-1">Getting Started with Cloud-Native HLS Data in Julia:</a><a class="docs-heading-anchor-permalink" href="#Getting-Started-with-Cloud-Native-HLS-Data-in-Julia:-1" title="Permalink"></a></h1><p>Extracting an EVI Time Series from Harmonized Landsat-8 Sentinel-2 (HLS) data in the Cloud using CMR&#39;s SpatioTemporal Asset Catalog (CMR-STAC). This tutorial demonstrates how to work with the HLS Landsat 8 (HLSL30.015) and Sentinel-2 (HLSS30.015) data products.</p><h4 id="NOTE:-This-tutorial-is-adapted-from-[Getting-Started-with-Cloud-Native-HLS-Data-in-Python](https://lpdaac.usgs.gov/resources/e-learning/getting-started-cloud-native-hls-data-python/)-1"><a class="docs-heading-anchor" href="#NOTE:-This-tutorial-is-adapted-from-[Getting-Started-with-Cloud-Native-HLS-Data-in-Python](https://lpdaac.usgs.gov/resources/e-learning/getting-started-cloud-native-hls-data-python/)-1">NOTE: This tutorial is adapted from <a href="https://lpdaac.usgs.gov/resources/e-learning/getting-started-cloud-native-hls-data-python/">Getting Started with Cloud-Native HLS Data in Python</a></a><a class="docs-heading-anchor-permalink" href="#NOTE:-This-tutorial-is-adapted-from-[Getting-Started-with-Cloud-Native-HLS-Data-in-Python](https://lpdaac.usgs.gov/resources/e-learning/getting-started-cloud-native-hls-data-python/)-1" title="Permalink"></a></h4><h1 id=".-Importing-packages-1"><a class="docs-heading-anchor" href="#.-Importing-packages-1">1. Importing packages</a><a class="docs-heading-anchor-permalink" href="#.-Importing-packages-1" title="Permalink"></a></h1><pre><code class="language-julia">using HTTP, JSON, GMT, RemoteS
+
+r = HTTP.request(&quot;GET&quot;, &quot;https://cmr.earthdata.nasa.gov/stac/&quot;);
+stac_response = JSON.parse(String(r.body));</code></pre><h1 id=".-Navigating-the-CMR-STAC-API-1"><a class="docs-heading-anchor" href="#.-Navigating-the-CMR-STAC-API-1">2. Navigating the CMR-STAC API</a><a class="docs-heading-anchor-permalink" href="#.-Navigating-the-CMR-STAC-API-1" title="Permalink"></a></h1><p>What is STAC?</p><blockquote><p>STAC is a specification that provides a common language for interpreting geospatial information in order to standardize indexing and discovering data.</p></blockquote><p>Four STAC Specifications:</p><ul><li><a href="https://github.com/radiantearth/stac-api-spec">STAC API</a></li><li><a href="https://github.com/radiantearth/stac-spec/blob/master/catalog-spec/catalog-spec.md">STAC Catalog</a></li><li><a href="https://github.com/radiantearth/stac-spec/blob/master/collection-spec/collection-spec.md">STAC Collection</a></li><li><a href="https://github.com/radiantearth/stac-spec/blob/master/item-spec/item-spec.md">STAC Item</a></li></ul><h3 id="STAC-Catalog:-Contains-a-JSON-file-of-links-that-organize-all-of-the-collections-available.-1"><a class="docs-heading-anchor" href="#STAC-Catalog:-Contains-a-JSON-file-of-links-that-organize-all-of-the-collections-available.-1">STAC Catalog: Contains a JSON file of links that organize all of the collections available.</a><a class="docs-heading-anchor-permalink" href="#STAC-Catalog:-Contains-a-JSON-file-of-links-that-organize-all-of-the-collections-available.-1" title="Permalink"></a></h3><h3 id="Search-for-LP-DAAC-Catalogs,-and-print-the-information-contained-in-the-Catalog-that-we-will-be-using-today,-LPCLOUD-1"><a class="docs-heading-anchor" href="#Search-for-LP-DAAC-Catalogs,-and-print-the-information-contained-in-the-Catalog-that-we-will-be-using-today,-LPCLOUD-1">Search for LP DAAC Catalogs, and print the information contained in the Catalog that we will be using today, LPCLOUD</a><a class="docs-heading-anchor-permalink" href="#Search-for-LP-DAAC-Catalogs,-and-print-the-information-contained-in-the-Catalog-that-we-will-be-using-today,-LPCLOUD-1" title="Permalink"></a></h3><pre><code class="language-julia">stac_lp = [s for s in stac_response[&quot;links&quot;] if occursin(&quot;LP&quot;, s[&quot;title&quot;])]
+
+# LPCLOUD is the STAC catalog we will be using and exploring today
+hr = [s for s in stac_lp if s[&quot;title&quot;] == &quot;LPCLOUD&quot;][1][&quot;href&quot;];
+r = HTTP.request(&quot;GET&quot;, hr);
+lp_cloud = JSON.parse(String(r.body));</code></pre><h3 id="Print-the-links-contained-in-the-LP-CLOUD-STAC-Catalog-1"><a class="docs-heading-anchor" href="#Print-the-links-contained-in-the-LP-CLOUD-STAC-Catalog-1">Print the links contained in the LP CLOUD STAC Catalog</a><a class="docs-heading-anchor-permalink" href="#Print-the-links-contained-in-the-LP-CLOUD-STAC-Catalog-1" title="Permalink"></a></h3><pre><code class="language-julia">lp_links = lp_cloud[&quot;links&quot;];
+
+for l in lp_links
+    try
+        println(l[&quot;href&quot;], &quot; is the &quot;, l[&quot;title&quot;])
+    catch
+        println(l[&quot;href&quot;])
+    end
+end</code></pre><pre><code class="language-none">https://cmr.earthdata.nasa.gov/stac/LPCLOUD is the Provider catalog
+https://cmr.earthdata.nasa.gov/stac/ is the Root catalog
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/collections is the Provider Collections
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/search is the Provider Item Search
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/search is the Provider Item Search
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/conformance is the Conformance Classes
+https://api.stacspec.org/v1.0.0-beta.1/openapi.yaml is the OpenAPI Doc
+https://api.stacspec.org/v1.0.0-beta.1/index.html is the HTML documentation
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/collections/ASTGTM.v003
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/collections/HLSL30.v2.0
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/collections/HLSL30.v1.5
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/collections/HLSS30.v1.5
+https://cmr.earthdata.nasa.gov/stac/LPCLOUD/collections/HLSS30.v2.0</code></pre><h2 id=".-STAC-Collection:-Extension-of-STAC-Catalog-containing-additional-information-that-describe-the-STAC-Items-in-that-Collection.-1"><a class="docs-heading-anchor" href="#.-STAC-Collection:-Extension-of-STAC-Catalog-containing-additional-information-that-describe-the-STAC-Items-in-that-Collection.-1">3. STAC Collection: Extension of STAC Catalog containing additional information that describe the STAC Items in that Collection.</a><a class="docs-heading-anchor-permalink" href="#.-STAC-Collection:-Extension-of-STAC-Catalog-containing-additional-information-that-describe-the-STAC-Items-in-that-Collection.-1" title="Permalink"></a></h2><h3 id="Get-a-response-from-the-LPCLOUD-Collection-and-print-the-information-included-in-the-response.-1"><a class="docs-heading-anchor" href="#Get-a-response-from-the-LPCLOUD-Collection-and-print-the-information-included-in-the-response.-1">Get a response from the LPCLOUD Collection and print the information included in the response.</a><a class="docs-heading-anchor-permalink" href="#Get-a-response-from-the-LPCLOUD-Collection-and-print-the-information-included-in-the-response.-1" title="Permalink"></a></h3><pre><code class="language-julia"># Set collections endpoint to variable
+lp_collections = [l[&quot;href&quot;] for l in lp_links if l[&quot;rel&quot;] == &quot;collections&quot;][1];
+
+# Call collections endpoint
+r = HTTP.request(&quot;GET&quot;, lp_collections);
+collections_response = JSON.parse(String(r.body));
+
+println(&quot;This collection contains $(collections_response[&quot;description&quot;]) ($(length(collections_response[&quot;collections&quot;])) available)&quot;)</code></pre><pre><code class="language-none">This collection contains All collections provided by LPCLOUD (5 available)</code></pre><h3 id="As-of-October-3,-2021,-there-are-five-collections-available,-and-more-will-be-added-in-the-future.-1"><a class="docs-heading-anchor" href="#As-of-October-3,-2021,-there-are-five-collections-available,-and-more-will-be-added-in-the-future.-1">As of October 3, 2021, there are five collections available, and more will be added in the future.</a><a class="docs-heading-anchor-permalink" href="#As-of-October-3,-2021,-there-are-five-collections-available,-and-more-will-be-added-in-the-future.-1" title="Permalink"></a></h3><h3 id="Print-out-one-of-the-collections:-1"><a class="docs-heading-anchor" href="#Print-out-one-of-the-collections:-1">Print out one of the collections:</a><a class="docs-heading-anchor-permalink" href="#Print-out-one-of-the-collections:-1" title="Permalink"></a></h3><pre><code class="language-julia">collections = collections_response[&quot;collections&quot;];
+collections[2]</code></pre><pre><code class="language-none">Dict{String, Any} with 8 entries:
+  &quot;links&quot;        =&gt; Any[Dict{String, Any}(&quot;rel&quot;=&gt;&quot;self&quot;, &quot;href&quot;=&gt;&quot;https://cmr.e…
+  &quot;id&quot;           =&gt; &quot;HLSL30.v2.0&quot;
+  &quot;stac_version&quot; =&gt; &quot;1.0.0&quot;
+  &quot;title&quot;        =&gt; &quot;HLS Landsat Operational Land Imager Surface Reflectance an…
+  &quot;license&quot;      =&gt; &quot;not-provided&quot;
+  &quot;type&quot;         =&gt; &quot;Collection&quot;
+  &quot;description&quot;  =&gt; &quot;The Harmonized Landsat and Sentinel-2 (HLS) project provid…
+  &quot;extent&quot;       =&gt; Dict{String, Any}(&quot;spatial&quot;=&gt;Dict{String, Any}(&quot;bbox&quot;=&gt;Any[…</code></pre><h3 id="In-CMR,-id-is-used-to-query-by-a-specific-product,-so-be-sure-to-save-the-ID-for-the-HLS-S30-and-L30-V1.5-products-below:-1"><a class="docs-heading-anchor" href="#In-CMR,-id-is-used-to-query-by-a-specific-product,-so-be-sure-to-save-the-ID-for-the-HLS-S30-and-L30-V1.5-products-below:-1">In CMR, <code>id</code> is used to query by a specific product, so be sure to save the ID for the HLS S30 and L30 V1.5 products below:</a><a class="docs-heading-anchor-permalink" href="#In-CMR,-id-is-used-to-query-by-a-specific-product,-so-be-sure-to-save-the-ID-for-the-HLS-S30-and-L30-V1.5-products-below:-1" title="Permalink"></a></h3><pre><code class="language-julia"># Search available collections for HLS and print them out
+hls_collections = [c for c in collections if contains(c[&quot;title&quot;], &quot;HLS&quot;)];
+
+[println(&quot;$(h[&quot;title&quot;]) has ID (shortname) of: $(h[&quot;id&quot;])&quot;) for h in hls_collections]</code></pre><pre><code class="language-none">HLS Landsat Operational Land Imager Surface Reflectance and TOA Brightness Daily Global 30m v2.0 has ID (shortname) of: HLSL30.v2.0
+HLS Operational Land Imager Surface Reflectance and TOA Brightness Daily Global 30 m V1.5 has ID (shortname) of: HLSL30.v1.5
+HLS Sentinel-2 Multi-spectral Instrument Surface Reflectance Daily Global 30 m V1.5 has ID (shortname) of: HLSS30.v1.5
+HLS Sentinel-2 Multi-spectral Instrument Surface Reflectance Daily Global 30m v2.0 has ID (shortname) of: HLSS30.v2.0
+
+4-element Vector{Nothing}:
+ nothing
+ nothing
+ nothing
+ nothing</code></pre><blockquote><p>Note that the <code>id</code> shortname is in the format: productshortname.vVVV (where VVV = product version)</p></blockquote><h3 id="Explore-the-attributes-contained-in-the-HLSS30-Collection.-1"><a class="docs-heading-anchor" href="#Explore-the-attributes-contained-in-the-HLSS30-Collection.-1">Explore the attributes contained in the HLSS30 Collection.</a><a class="docs-heading-anchor-permalink" href="#Explore-the-attributes-contained-in-the-HLSS30-Collection.-1" title="Permalink"></a></h3><pre><code class="language-julia"># Grab HLSS30 collection
+s30 = [h for h in hls_collections if h[&quot;id&quot;] == &quot;HLSS30.v1.5&quot;][1];
+
+# Check out the extent of this collection
+for k in keys(s30[&quot;extent&quot;]) println(k, &quot; : &quot;, s30[&quot;extent&quot;][k]) end</code></pre><pre><code class="language-none">spatial : Dict{String, Any}(&quot;bbox&quot; =&gt; Any[Any[-180, -90, 180, 90]])
+temporal : Dict{String, Any}(&quot;interval&quot; =&gt; Any[Any[&quot;2015-12-01T00:00:00.000Z&quot;, nothing]])</code></pre><h3 id="So-here-we-can-see-that-the-extent-is-global,-and-can-also-see-the-temporal-range–where-None-means-on-going-or-to-present.-1"><a class="docs-heading-anchor" href="#So-here-we-can-see-that-the-extent-is-global,-and-can-also-see-the-temporal-range–where-None-means-on-going-or-to-present.-1">So here we can see that the extent is global, and can also see the temporal range–where <code>None</code> means on-going or to present.</a><a class="docs-heading-anchor-permalink" href="#So-here-we-can-see-that-the-extent-is-global,-and-can-also-see-the-temporal-range–where-None-means-on-going-or-to-present.-1" title="Permalink"></a></h3><pre><code class="language-julia">println(&quot;HLS S30 Start Date is: $(s30[&quot;extent&quot;][&quot;temporal&quot;][&quot;interval&quot;][1][1])&quot;)</code></pre><pre><code class="language-none">HLS S30 Start Date is: 2015-12-01T00:00:00.000Z</code></pre><h3 id="Next,-explore-the-attributes-of-the-HLSL30-collection.-1"><a class="docs-heading-anchor" href="#Next,-explore-the-attributes-of-the-HLSL30-collection.-1">Next, explore the attributes of the HLSL30 collection.</a><a class="docs-heading-anchor-permalink" href="#Next,-explore-the-attributes-of-the-HLSL30-collection.-1" title="Permalink"></a></h3><p>Above, notice that the L30 product has a different start date than the S30 product.</p><h2 id=".-STAC-Item:-Represents-data-and-metadata-assets-that-are-spatiotemporally-coincident-1"><a class="docs-heading-anchor" href="#.-STAC-Item:-Represents-data-and-metadata-assets-that-are-spatiotemporally-coincident-1">4. STAC Item: Represents data and metadata assets that are spatiotemporally coincident</a><a class="docs-heading-anchor-permalink" href="#.-STAC-Item:-Represents-data-and-metadata-assets-that-are-spatiotemporally-coincident-1" title="Permalink"></a></h2><h3 id="Query-the-HLSS30-collection-for-items-and-return-the-first-item-in-the-collection.-1"><a class="docs-heading-anchor" href="#Query-the-HLSS30-collection-for-items-and-return-the-first-item-in-the-collection.-1">Query the HLSS30 collection for items and return the first item in the collection.</a><a class="docs-heading-anchor-permalink" href="#Query-the-HLSS30-collection-for-items-and-return-the-first-item-in-the-collection.-1" title="Permalink"></a></h3><pre><code class="language-julia"># Go through all links in the collection and return the link containing the items endpoint
+
+# Set items endpoint to variable
+s30_items = [s[&quot;href&quot;] for s in s30[&quot;links&quot;] if s[&quot;rel&quot;] == &quot;items&quot;][1]</code></pre><pre><code class="language-none">&quot;https://cmr.earthdata.nasa.gov/stac/LPCLOUD/collections/HLSS30.v1.5/items&quot;</code></pre><pre><code class="language-julia"># Call items endpoint
+r = HTTP.request(&quot;GET&quot;, s30_items);
+s30_items_response = JSON.parse(String(r.body));
+
+s30_item = s30_items_response[&quot;features&quot;][1]</code></pre><pre><code class="language-none">Dict{String, Any} with 10 entries:
+  &quot;links&quot;           =&gt; Any[Dict{String, Any}(&quot;rel&quot;=&gt;&quot;self&quot;, &quot;href&quot;=&gt;&quot;https://cm…
+  &quot;stac_extensions&quot; =&gt; Any[&quot;https://stac-extensions.github.io/eo/v1.0.0/schema.…
+  &quot;geometry&quot;        =&gt; Dict{String, Any}(&quot;coordinates&quot;=&gt;Any[Any[Any[40.9215, 19…
+  &quot;id&quot;              =&gt; &quot;HLS.S30.T37QGC.2016228T074942.v1.5&quot;
+  &quot;stac_version&quot;    =&gt; &quot;1.0.0&quot;
+  &quot;properties&quot;      =&gt; Dict{String, Any}(&quot;datetime&quot;=&gt;&quot;2016-08-15T08:00:59.720Z&quot;…
+  &quot;bbox&quot;            =&gt; Any[40.9089, 19.7977, 41.1665, 20.7895]
+  &quot;type&quot;            =&gt; &quot;Feature&quot;
+  &quot;assets&quot;          =&gt; Dict{String, Any}(&quot;B8A&quot;=&gt;Dict{String, Any}(&quot;href&quot;=&gt;&quot;http…
+  &quot;collection&quot;      =&gt; &quot;HLSS30.v1.5&quot;</code></pre><h3 id="STAC-metadata-provides-valuable-information-on-the-item,-including-a-unique-ID,-when-it-was-acquired,-the-location-of-the-observation,-and-a-cloud-cover-assessment.-1"><a class="docs-heading-anchor" href="#STAC-metadata-provides-valuable-information-on-the-item,-including-a-unique-ID,-when-it-was-acquired,-the-location-of-the-observation,-and-a-cloud-cover-assessment.-1">STAC metadata provides valuable information on the item, including a unique ID, when it was acquired, the location of the observation, and a cloud cover assessment.</a><a class="docs-heading-anchor-permalink" href="#STAC-metadata-provides-valuable-information-on-the-item,-including-a-unique-ID,-when-it-was-acquired,-the-location-of-the-observation,-and-a-cloud-cover-assessment.-1" title="Permalink"></a></h3><pre><code class="language-julia"># Print metadata attributes from this observation
+println(&quot;The ID for this item is: $(s30_item[&quot;id&quot;])&quot;)
+println(&quot;It was acquired on: $(s30_item[&quot;properties&quot;][&quot;datetime&quot;]))&quot;)
+println(&quot;over: $(s30_item[&quot;bbox&quot;]) (Lower Left, Upper Right corner coordinates)&quot;)
+println(&quot;It contains $(length(s30_item[&quot;assets&quot;])) assets&quot;)
+println(&quot;and is $(s30_item[&quot;properties&quot;][&quot;eo:cloud_cover&quot;])% cloudy.&quot;)</code></pre><pre><code class="language-none">The ID for this item is: HLS.S30.T37QGC.2016228T074942.v1.5
+It was acquired on: 2016-08-15T08:00:59.720Z)
+over: Any[40.908869, 19.797714, 41.166492, 20.789487] (Lower Left, Upper Right corner coordinates)
+It contains 20 assets
+and is 4% cloudy.</code></pre><h4 id="Print-out-the-ten-items-and-the-percent-cloud-cover–we-will-use-this-to-decidewhich-item-to-visualize-in-the-next-section.-1"><a class="docs-heading-anchor" href="#Print-out-the-ten-items-and-the-percent-cloud-cover–we-will-use-this-to-decidewhich-item-to-visualize-in-the-next-section.-1">Print out the ten items and the percent cloud cover–we will use this to decidewhich item to visualize in the next section.</a><a class="docs-heading-anchor-permalink" href="#Print-out-the-ten-items-and-the-percent-cloud-cover–we-will-use-this-to-decidewhich-item-to-visualize-in-the-next-section.-1" title="Permalink"></a></h4><h4 id="Using-the-information-printed-above,-set-the-item_index-below-to-whichever-observation-is-the-least-cloudy-above.-1"><a class="docs-heading-anchor" href="#Using-the-information-printed-above,-set-the-item_index-below-to-whichever-observation-is-the-least-cloudy-above.-1">Using the information printed above, set the <code>item_index</code> below to whichever observation is the least cloudy above.</a><a class="docs-heading-anchor-permalink" href="#Using-the-information-printed-above,-set-the-item_index-below-to-whichever-observation-is-the-least-cloudy-above.-1" title="Permalink"></a></h4><pre><code class="language-julia">item_index = 2;
+
+# Grab the next item in the list
+s30_item = s30_items_response[&quot;features&quot;][item_index];
+
+println(&quot;The ID for this item is: $(s30_item[&quot;id&quot;])&quot;)
+println(&quot;It was acquired on: $(s30_item[&quot;properties&quot;][&quot;datetime&quot;])&quot;)
+println(&quot;over: $(s30_item[&quot;bbox&quot;]) (Lower Left, Upper Right corner coordinates)&quot;)
+println(&quot;It contains $(length(s30_item[&quot;assets&quot;])) assets&quot;)
+println(&quot;and is $(s30_item[&quot;properties&quot;][&quot;eo:cloud_cover&quot;])% cloudy.&quot;)</code></pre><pre><code class="language-none">The ID for this item is: HLS.S30.T37QEE.2016228T074942.v1.5
+It was acquired on: 2016-08-15T08:00:59.720Z
+over: Any[38.999805, 21.611674, 40.068079, 22.607038] (Lower Left, Upper Right corner coordinates)
+It contains 20 assets
+and is 0% cloudy.</code></pre><h4 id="Print-out-the-names-of-all-of-the-assets-included-in-this-item.-1"><a class="docs-heading-anchor" href="#Print-out-the-names-of-all-of-the-assets-included-in-this-item.-1">Print out the names of all of the assets included in this item.</a><a class="docs-heading-anchor-permalink" href="#Print-out-the-names-of-all-of-the-assets-included-in-this-item.-1" title="Permalink"></a></h4><pre><code class="language-julia">println(&quot;The following assets are available for download:&quot;)
+keys(s30_item[&quot;assets&quot;])</code></pre><pre><code class="language-none">The following assets are available for download:
+
+KeySet for a Dict{String, Any} with 20 entries. Keys:
+  &quot;B8A&quot;
+  &quot;SZA&quot;
+  &quot;B07&quot;
+  &quot;B05&quot;
+  &quot;B02&quot;
+  &quot;B06&quot;
+  &quot;B08&quot;
+  &quot;B01&quot;
+  &quot;B09&quot;
+  &quot;Fmask&quot;
+  &quot;VZA&quot;
+  &quot;B10&quot;
+  &quot;browse&quot;
+  &quot;B03&quot;
+  &quot;B04&quot;
+  &quot;VAA&quot;
+  &quot;metadata&quot;
+  &quot;SAA&quot;
+  &quot;B11&quot;
+  &quot;B12&quot;</code></pre><h4 id="Notice-that-each-HLS-item-includes-a-browse-image.-Read-the-browse-file-into-memory-and-visualize-the-HLS-acquisition.-1"><a class="docs-heading-anchor" href="#Notice-that-each-HLS-item-includes-a-browse-image.-Read-the-browse-file-into-memory-and-visualize-the-HLS-acquisition.-1">Notice that each HLS item includes a browse image. Read the browse file into memory and visualize the HLS acquisition.</a><a class="docs-heading-anchor-permalink" href="#Notice-that-each-HLS-item-includes-a-browse-image.-Read-the-browse-file-into-memory-and-visualize-the-HLS-acquisition.-1" title="Permalink"></a></h4><pre><code class="language-julia">s30_item[&quot;assets&quot;][&quot;browse&quot;]</code></pre><pre><code class="language-none">Dict{String, Any} with 3 entries:
+  &quot;href&quot;  =&gt; &quot;https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-public/HLSS30…
+  &quot;title&quot; =&gt; &quot;Download HLS.S30.T37QEE.2016228T074942.v1.5.jpg&quot;
+  &quot;type&quot;  =&gt; &quot;image/jpeg&quot;</code></pre><pre><code class="language-julia">img = gmtread(s30_item[&quot;assets&quot;][&quot;browse&quot;][&quot;href&quot;]);
+imshow(img)</code></pre><img src="../output_31_0.png" width="400" class="center"/><h4 id="Congrats!-You-have-pulled-your-first-HLS-asset-from-the-cloud-using-STAC!-1"><a class="docs-heading-anchor" href="#Congrats!-You-have-pulled-your-first-HLS-asset-from-the-cloud-using-STAC!-1">Congrats! You have pulled your first HLS asset from the cloud using STAC!</a><a class="docs-heading-anchor-permalink" href="#Congrats!-You-have-pulled-your-first-HLS-asset-from-the-cloud-using-STAC!-1" title="Permalink"></a></h4><h1 id=".-CMR-STAC-API:-Searching-for-Items-1"><a class="docs-heading-anchor" href="#.-CMR-STAC-API:-Searching-for-Items-1">3. CMR-STAC API: Searching for Items</a><a class="docs-heading-anchor-permalink" href="#.-CMR-STAC-API:-Searching-for-Items-1" title="Permalink"></a></h1><p>In this section, instead of simply navigating through the structure of a STAC Catalog, use the search endpoint to query the API by region of interest and time period of interest.</p><h2 id=".1-Spatial-Querying-via-Bounding-Box-1"><a class="docs-heading-anchor" href="#.1-Spatial-Querying-via-Bounding-Box-1">3.1 Spatial Querying via Bounding Box</a><a class="docs-heading-anchor-permalink" href="#.1-Spatial-Querying-via-Bounding-Box-1" title="Permalink"></a></h2><p>The search endpoint is one of the links found in the LPCLOUD STAC Catalog, which can be leveraged to retrieve STAC Items that match the submitted query parameters.</p><p>Grab the search endpoint for the <code>LPCLOUD</code> STAC Catalog and send a POST request to retrieve items.</p><pre><code class="language-julia"># Define the search endpoint
+lp_search = [l[&quot;href&quot;] for l in lp_links if l[&quot;rel&quot;] == &quot;search&quot;][1]
+
+# Set up a dictionary that will be used to POST requests to the search endpoint
+params = Dict();</code></pre><pre><code class="language-julia">r = HTTP.request(&quot;POST&quot;, lp_search);
+search_response = JSON.parse(String(r.body));
+
+&quot;$(length(search_response[&quot;features&quot;])) items found&quot;</code></pre><pre><code class="language-none">&quot;10 items found&quot;</code></pre><p>If we just call the search endpoint directly, it will default to returning the first 10 granules. Below, set a limit to return the first 100 matching items. Additional information on the spec for adding parameters to a search query can be found at:</p><p>https://github.com/radiantearth/stac-api-spec/tree/master/item-search#query-parameters-and-fields.</p><pre><code class="language-julia"># Add in a limit parameter to retrieve 100 items at a time.
+lim = 100;
+params[&quot;limit&quot;] = lim;</code></pre><p>Above, we have added the limit as a parameter to the dictionary that we will post to the search endpoint to submit our request for data. As we keep moving forward in the tutorial, we will continue adding parameters to the <code>params</code> dictionary.</p><pre><code class="language-julia"># send POST request to retrieve first 100 items in the STAC collection
+r = HTTP.post(lp_search, [&quot;Content-Type&quot; =&gt; &quot;application/json&quot;], JSON.json(params));
+search_response = JSON.parse(String(r.body));
+
+&quot;$(length(search_response[&quot;features&quot;])) items found&quot;</code></pre><pre><code class="language-none">&quot;100 items found&quot;</code></pre><p>Load in the spatial region of interest for our use case using GMT. You will need to have downloaded the <a href="https://git.earthdata.nasa.gov/projects/LPDUR/repos/hls-tutorial/browse/Field_Boundary.geojson?_gl=1*1ioilxg*_ga*MTY1NTgzMTYzNi4xNjMzMjg2MzA3*_ga_0YWDZEJ295*MTYzMzI4NjMwNy4xLjAuMTYzMzI4NjMwNy4w">Field_Boundary.geojson</a> from the repo, and it must be stored in the current working directory in order to continue. If you are still encountering issues, you can add the entire filepath to the file (ex: <code>D = gmtread(\&quot;C:/Username/HLS-Tutorial/Field_Boundary.geojson\&quot;)</code> and try again.</p><pre><code class="language-julia"># Since the output is a vector of GMTdataset and all data is in first element
+D = gdalread(&quot;c:/v/Field_Boundary.geojson&quot;)[1];</code></pre><p>Plot the geometry of the farm field boundaries.</p><pre><code class="language-julia">imshow(D, projection=:guess)</code></pre><img src="../output_43_0.png" width="300" class="center"/><p>The farm field used in this example use case is located northwest of Chico, CA.</p><p>Now, add the bounding box of the region of interest to the CMR-STAC API Search query using the bbox parameter.</p><pre><code class="language-julia"># Compute the polygon bounding cordinates
+bb = gmtinfo(D, C=1)[1];
+
+bbox = &quot;$(bb[1]),$(bb[3]),$(bb[2]),$(bb[4])&quot;;</code></pre><pre><code class="language-julia">params[&quot;bbox&quot;] = bbox;
+params</code></pre><pre><code class="language-none">Dict{Any, Any} with 2 entries:
+  &quot;bbox&quot;  =&gt; &quot;-122.0622682571411,39.897234301806,-122.04918980598451,39.9130938…
+  &quot;limit&quot; =&gt; 100</code></pre><pre><code class="language-julia"># Send POST request with bbox included
+r = HTTP.post(lp_search, [&quot;Content-Type&quot; =&gt; &quot;application/json&quot;], JSON.json(params));
+search_response = JSON.parse(String(r.body));
+
+&quot;$(length(search_response[&quot;features&quot;])) items found&quot;</code></pre><pre><code class="language-none">&quot;100 items found&quot;</code></pre><h2 id=".2-Temporal-Querying-1"><a class="docs-heading-anchor" href="#.2-Temporal-Querying-1">3.2 Temporal Querying</a><a class="docs-heading-anchor-permalink" href="#.2-Temporal-Querying-1" title="Permalink"></a></h2><p>Finally, you can narrow your search to a specific time period of interest using the datetime parameter. Here we have set the time period of interest from September 2020 through March 2021. Additional information on setting temporal searches can be found in the NASA CMR Documentation.</p><pre><code class="language-julia"># Define start time period / end time period
+date_time = &quot;2020-09-01T00:00:00Z/2021-03-31T23:59:59Z&quot;;
+
+params[&quot;datetime&quot;] = date_time
+params</code></pre><pre><code class="language-none">Dict{Any, Any} with 3 entries:
+  &quot;datetime&quot; =&gt; &quot;2020-09-01T00:00:00Z/2021-03-31T23:59:59Z&quot;
+  &quot;bbox&quot;     =&gt; &quot;-122.0622682571411,39.897234301806,-122.04918980598451,39.9130…
+  &quot;limit&quot;    =&gt; 100</code></pre><pre><code class="language-julia"># Send POST request with datetime included
+r = HTTP.post(lp_search, [&quot;Content-Type&quot; =&gt; &quot;application/json&quot;], JSON.json(params))
+search_response = JSON.parse(String(r.body));
+
+&quot;$(length(search_response[&quot;features&quot;])) items found&quot;</code></pre><pre><code class="language-none">&quot;100 items found&quot;</code></pre><pre><code class="language-julia">params</code></pre><pre><code class="language-none">Dict{Any, Any} with 3 entries:
+  &quot;datetime&quot; =&gt; &quot;2020-09-01T00:00:00Z/2021-03-31T23:59:59Z&quot;
+  &quot;bbox&quot;     =&gt; &quot;-122.0622682571411,39.897234301806,-122.04918980598451,39.9130…
+  &quot;limit&quot;    =&gt; 100</code></pre><h3 id="As-of-October-4,-2021,-the-HLS-Operational-Land-Imager-Surface-Reflectance-and-TOA-Brightness-(HLSL30)-product-has-been-provisionally-released,-and-this-tutorial-has-been-updated-to-show-how-to-combine-observations-from-both-products-into-a-time-series.-1"><a class="docs-heading-anchor" href="#As-of-October-4,-2021,-the-HLS-Operational-Land-Imager-Surface-Reflectance-and-TOA-Brightness-(HLSL30)-product-has-been-provisionally-released,-and-this-tutorial-has-been-updated-to-show-how-to-combine-observations-from-both-products-into-a-time-series.-1">As of October 4, 2021, the HLS Operational Land Imager Surface Reflectance and TOA Brightness (HLSL30) product has been provisionally released, and this tutorial has been updated to show how to combine observations from both products into a time series.</a><a class="docs-heading-anchor-permalink" href="#As-of-October-4,-2021,-the-HLS-Operational-Land-Imager-Surface-Reflectance-and-TOA-Brightness-(HLSL30)-product-has-been-provisionally-released,-and-this-tutorial-has-been-updated-to-show-how-to-combine-observations-from-both-products-into-a-time-series.-1" title="Permalink"></a></h3><p>Next, add the <code>shortname</code> for the HLSS30 v1.5 product (HLSS30.v1.5) to the params dictionary, and query the CMR-STAC LPCLOUD search endpoint for just HLSS30 items.</p><pre><code class="language-julia">s30_id = &quot;HLSS30.v1.5&quot;
+params[&quot;collections&quot;] = [s30_id];</code></pre><pre><code class="language-julia"># Search for the HLSS30 items of interest:
+# Send POST request with collection included
+r = HTTP.post(lp_search, [&quot;Content-Type&quot; =&gt; &quot;application/json&quot;], JSON.json(params))
+s30_items = JSON.parse(String(r.body))[&quot;features&quot;];
+length(s30_items)</code></pre><pre><code class="language-none">61</code></pre><p>Append the HLSL30 V1.5 Product shortname (ID) to the list under the <code>collections</code> parameter.</p><pre><code class="language-julia">l30_id = &quot;HLSL30.v1.5&quot;;
+append!(params[&quot;collections&quot;], [l30_id])
+params</code></pre><pre><code class="language-none">Dict{Any, Any} with 4 entries:
+  &quot;datetime&quot;    =&gt; &quot;2020-09-01T00:00:00Z/2021-03-31T23:59:59Z&quot;
+  &quot;collections&quot; =&gt; [&quot;HLSS30.v1.5&quot;, &quot;HLSL30.v1.5&quot;]
+  &quot;bbox&quot;        =&gt; &quot;-122.0622682571411,39.897234301806,-122.04918980598451,39.9…
+  &quot;limit&quot;       =&gt; 100</code></pre><h3 id="The-collections-parameter-is-a-list-and-can-include-multiple-product-collection-short-names.-1"><a class="docs-heading-anchor" href="#The-collections-parameter-is-a-list-and-can-include-multiple-product-collection-short-names.-1">The collections parameter is a list and can include multiple product collection short names.</a><a class="docs-heading-anchor-permalink" href="#The-collections-parameter-is-a-list-and-can-include-multiple-product-collection-short-names.-1" title="Permalink"></a></h3><pre><code class="language-julia"># Search for the HLSS30 and HLSL30 items of interest:
+# Send POST request with S30 and L30 collections included
+r = HTTP.post(lp_search, [&quot;Content-Type&quot; =&gt; &quot;application/json&quot;], JSON.json(params))
+hls_items = JSON.parse(String(r.body))[&quot;features&quot;];
+length(hls_items)</code></pre><pre><code class="language-none">68</code></pre><h1 id=".-Extracting-HLS-COGs-from-the-Cloud-1"><a class="docs-heading-anchor" href="#.-Extracting-HLS-COGs-from-the-Cloud-1">4. Extracting HLS COGs from the Cloud</a><a class="docs-heading-anchor-permalink" href="#.-Extracting-HLS-COGs-from-the-Cloud-1" title="Permalink"></a></h1><p>In this section, configure gdal and rasterio to use vsicurl to access the cloud assets that we are interested in, and read them directly into memory without needing to download the files.</p><pre><code class="language-julia"># GDAL configurations used to successfully access LP DAAC Cloud Assets via vsicurl 
+set_config_option(&quot;GDAL_HTTP_COOKIEFILE&quot;, joinpath(tempdir(), &quot;cookies.txt&quot;))
+set_config_option(&quot;GDAL_HTTP_COOKIEJAR&quot;, joinpath(tempdir(), &quot;cookies.txt&quot;))
+set_config_option(&quot;GDAL_DISABLE_READDIR_ON_OPEN&quot;,&quot;YES&quot;)
+set_config_option(&quot;CPL_VSIL_CURL_ALLOWED_EXTENSIONS&quot;,&quot;TIF&quot;)
+set_config_option(&quot;CPL_VSIL_CURL_USE_HEAD&quot;,&quot;FALSE&quot;)
+set_config_option(&quot;GDAL_HTTP_UNSAFESSL&quot;, &quot;YES&quot;)</code></pre><h2 id=".1-Subset-by-Band-1"><a class="docs-heading-anchor" href="#.1-Subset-by-Band-1">4.1 Subset by Band</a><a class="docs-heading-anchor-permalink" href="#.1-Subset-by-Band-1" title="Permalink"></a></h2><p>View the contents of the first item.</p><pre><code class="language-julia">h = hls_items[1]</code></pre><pre><code class="language-none">Dict{String, Any} with 10 entries:
+  &quot;links&quot;           =&gt; Any[Dict{String, Any}(&quot;rel&quot;=&gt;&quot;self&quot;, &quot;href&quot;=&gt;&quot;https://cm…
+  &quot;stac_extensions&quot; =&gt; Any[&quot;https://stac-extensions.github.io/eo/v1.0.0/schema.…
+  &quot;geometry&quot;        =&gt; Dict{String, Any}(&quot;coordinates&quot;=&gt;Any[Any[Any[-121.964, 3…
+  &quot;id&quot;              =&gt; &quot;HLS.S30.T10TEK.2020273T190109.v1.5&quot;
+  &quot;stac_version&quot;    =&gt; &quot;1.0.0&quot;
+  &quot;properties&quot;      =&gt; Dict{String, Any}(&quot;datetime&quot;=&gt;&quot;2020-09-29T19:13:24.996Z&quot;…
+  &quot;bbox&quot;            =&gt; Any[-123.0, 39.657, -121.702, 40.6509]
+  &quot;type&quot;            =&gt; &quot;Feature&quot;
+  &quot;assets&quot;          =&gt; Dict{String, Any}(&quot;B8A&quot;=&gt;Dict{String, Any}(&quot;href&quot;=&gt;&quot;http…
+  &quot;collection&quot;      =&gt; &quot;HLSS30.v1.5&quot;</code></pre><h3 id="Subset-by-band-by-filtering-to-only-include-the-NIR,-Red,-Blue,-and-Quality-(Fmask)-layers-in-the-list-of-links-to-access.-Below-you-can-find-the-different-band-numbers-for-each-of-the-two-products.-1"><a class="docs-heading-anchor" href="#Subset-by-band-by-filtering-to-only-include-the-NIR,-Red,-Blue,-and-Quality-(Fmask)-layers-in-the-list-of-links-to-access.-Below-you-can-find-the-different-band-numbers-for-each-of-the-two-products.-1">Subset by band by filtering to only include the NIR, Red, Blue, and Quality (Fmask) layers in the list of links to access. Below you can find the different band numbers for each of the two products.</a><a class="docs-heading-anchor-permalink" href="#Subset-by-band-by-filtering-to-only-include-the-NIR,-Red,-Blue,-and-Quality-(Fmask)-layers-in-the-list-of-links-to-access.-Below-you-can-find-the-different-band-numbers-for-each-of-the-two-products.-1" title="Permalink"></a></h3><h2 id="Sentinel-2:-1"><a class="docs-heading-anchor" href="#Sentinel-2:-1">Sentinel 2:</a><a class="docs-heading-anchor-permalink" href="#Sentinel-2:-1" title="Permalink"></a></h2><pre><code class="language-julia">evi_band_links = []
+
+# Define which HLS product is being accessed
+if (split(h[&quot;assets&quot;][&quot;browse&quot;][&quot;href&quot;], &#39;/&#39;)[5] == &quot;HLSS30.015&quot;)
+    evi_bands = [&quot;B8A&quot;, &quot;B04&quot;, &quot;B02&quot;, &quot;Fmask&quot;] # NIR RED BLUE Quality for S30
+else
+    evi_bands = [&quot;B05&quot;, &quot;B04&quot;, &quot;B02&quot;, &quot;Fmask&quot;] # NIR RED BLUE Quality for L30
+end
+
+# Subset the assets in the item down to only the desired bands
+for a in h[&quot;assets&quot;]
+    for b in evi_bands
+        if b == first(a)
+            append!(evi_band_links, [h[&quot;assets&quot;][first(a)][&quot;href&quot;]])
+        end
+    end
+end
+
+for e in evi_band_links  println(e)  end</code></pre><pre><code class="language-none">https://lpdaac.earthdata.nasa.gov/lp-prod-protected/HLSS30.015/HLS.S30.T10TEK.2020273T190109.v1.5.B8A.tif
+https://lpdaac.earthdata.nasa.gov/lp-prod-protected/HLSS30.015/HLS.S30.T10TEK.2020273T190109.v1.5.B02.tif
+https://lpdaac.earthdata.nasa.gov/lp-prod-protected/HLSS30.015/HLS.S30.T10TEK.2020273T190109.v1.5.Fmask.tif
+https://lpdaac.earthdata.nasa.gov/lp-prod-protected/HLSS30.015/HLS.S30.T10TEK.2020273T190109.v1.5.B04.tif</code></pre><p>Remember from above that you can always quickly load in the browse image to get a quick view of the item.</p><pre><code class="language-julia"># Load jpg browse image into memory
+image = gmtread(h[&quot;assets&quot;][&quot;browse&quot;][&quot;href&quot;]);
+imshow(image)</code></pre><img src="../output_66_0.png" width="500" class="center"/><p>Above, we see a partly cloudy observation over the northern Central Valley of California.</p><h2 id=".2-Load-a-Spatially-Subset-HLS-COG-into-Memory-1"><a class="docs-heading-anchor" href="#.2-Load-a-Spatially-Subset-HLS-COG-into-Memory-1">4.2 Load a Spatially Subset HLS COG into Memory</a><a class="docs-heading-anchor-permalink" href="#.2-Load-a-Spatially-Subset-HLS-COG-into-Memory-1" title="Permalink"></a></h2><blockquote><p>Before loading the COGs into memory, run the cell below to check and make sure that you have a netrc file set up with your <a href="https://urs.earthdata.nasa.gov">NASA Earthdata Login</a> credentials, which will be needed to access the HLS files in the cells that follow. If you do not have a netrc file set up on your OS, the cell below should prompt you for your NASA Earthdata Login username and password.</p></blockquote><pre><code class="language-julia">set_config_option(&quot;GDAL_HTTP_COOKIEFILE&quot;, joinpath(tempdir(), &quot;cookies.txt&quot;));
+set_config_option(&quot;GDAL_HTTP_COOKIEJAR&quot;, joinpath(tempdir(), &quot;cookies.txt&quot;));
+set_config_option(&quot;GDAL_DISABLE_READDIR_ON_OPEN&quot;,&quot;YES&quot;);
+set_config_option(&quot;CPL_VSIL_CURL_ALLOWED_EXTENSIONS&quot;,&quot;TIF&quot;);
+set_config_option(&quot;CPL_VSIL_CURL_USE_HEAD&quot;,&quot;FALSE&quot;);
+set_config_option(&quot;GDAL_HTTP_UNSAFESSL&quot;, &quot;YES&quot;);</code></pre><pre><code class="language-julia">for e in evi_band_links
+    if split(e,&#39;.&#39;)[end-1] == evi_bands[1] # NIR index
+        println(&quot;/vsicurl/&quot;*e)
+        tic()
+        global nir = GMT.Gdal.read(&quot;/vsicurl/&quot;*e)
+        toc()
+    elseif split(e,&#39;.&#39;)[end-1] == evi_bands[2] # Red index
+        global red = GMT.Gdal.read(&quot;/vsicurl/&quot;*e)
+    elseif split(e,&#39;.&#39;)[end-1] == evi_bands[3] # Blue index
+        global blue = GMT.Gdal.read(&quot;/vsicurl/&quot;*e)
+    elseif split(e,&#39;.&#39;)[end-1] == evi_bands[4] # Mask index
+        global fmask = GMT.Gdal.read(&quot;/vsicurl/&quot;*e)
+    end
+end
+println(&quot;The COGs have been loaded into memory!&quot;)</code></pre><pre><code class="language-none">/vsicurl/https://lpdaac.earthdata.nasa.gov/lp-prod-protected/HLSS30.015/HLS.S30.T10TEK.2020273T190109.v1.5.B8A.tif
+elapsed time: 11.319765 seconds
+The COGs have been loaded into memory!</code></pre><p>Getting an error in the section above? Accessing these files in the cloud requires you to authenticate using your NASA Earthdata Login account. You will need to have a <strong>netrc</strong> file set up containing those credentials in your home directory in order to successfully run the code</p><p>Below, take the farm field polygon and convert it from lat/lon (EPSG: 4326) into the native projection of HLS, UTM (aligned to the Military Grid Reference System). This must be done in order to use the Region of Interest (ROI) to subset the COG that is being pulled into memory–it must be in the native projection of the data being extracted.</p><pre><code class="language-julia">utm = getproj(nir);        # Destination coordinate system
+Dp  = lonlat2xy(D, utm);   # Project to UTM
+Dp[1].geom = wkbPolygon;   # Ensure it&#39;s a polygon for the mask calculation</code></pre><pre><code class="language-julia"># Compute the projected polygon bounding cordinates
+bb = gmtinfo(Dp, numeric=true)[1];</code></pre><p>Compute a mask with 1&#39;s inside the farm&#39;s polygon and 0&#39;s outside.</p><pre><code class="language-julia">mask = gdalrasterize(Dp, [&quot;-tr&quot;,&quot;30&quot;,&quot;30&quot;, &quot;-te&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[3])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[4])&quot;, &quot;-burn&quot;, &quot;1&quot;, &quot;-init&quot;, &quot;0&quot;]);</code></pre><p>Now, we can use the ROI to mask any pixels that fall outside of it and crop to the bounding box. This greatly reduces the amount of data that are needed to load into memory.</p><pre><code class="language-julia">nir_cropped = gdaltranslate(nir, [&quot;-projwin&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[4])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[3])&quot;]);
+red_cropped = gdaltranslate(red, [&quot;-projwin&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[4])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[3])&quot;]);
+blue_cropped = gdaltranslate(blue, [&quot;-projwin&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[4])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[3])&quot;]);
+fmask_cropped = gdaltranslate(fmask, [&quot;-projwin&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[4])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[3])&quot;]);
+
+@inbounds Threads.@threads for k = 1:length(fmask_cropped)
+    (mask[k] == 0) &amp;&amp; (fmask_cropped[k] = 1)
+end</code></pre><h1 id=".-Processing-HLS-Data-1"><a class="docs-heading-anchor" href="#.-Processing-HLS-Data-1">5. Processing HLS Data</a><a class="docs-heading-anchor-permalink" href="#.-Processing-HLS-Data-1" title="Permalink"></a></h1><p>In this section, read the file metadata to retrieve and apply the scale factor, filter out nodata values, define a function to calculate EVI, and execute the EVI function on the data loaded into memory. After that, perform quality filtering to screen out any poor quality observations.</p><p>Compute the EVI index using the evi function from the RemoreS package and plot the results.</p><pre><code class="language-julia">EVI = evi(blue_cropped, red_cropped, nir_cropped);</code></pre><p>Apply a mask to the EVI layer using pixels with good quality as defined by the Fmask.</p><p>The good quality is encoded in the <span>$fmask$</span> where its pixels are equal to zero.</p><pre><code class="language-julia"># Replace the flagged values by NaN
+@inbounds Threads.@threads for k = 1:length(EVI)
+    (fmask_cropped[k] != 0) &amp;&amp; (EVI[k] = NaN32)
+end</code></pre><pre><code class="language-julia"># Display the EVI
+imshow(EVI, colorbar=true)</code></pre><img src="../output_84_0.png" width="300" class="center"/><h1 id=".-Automation-1"><a class="docs-heading-anchor" href="#.-Automation-1">6. Automation</a><a class="docs-heading-anchor-permalink" href="#.-Automation-1" title="Permalink"></a></h1><p>In this section, automate sections 4-5 for each HLS item that intersects our spatiotemporal subset of interest. Loop through each item and subset to the desired bands, load the spatial subset into memory, calculate EVI, quality filter, and save as a netCDF multi-layered cube.</p><p>Note: Be patient with the for loop below, it will take nearly an hour to complete.</p><pre><code class="language-julia"># Put it all together and loop through each of the files, visualize, calculate statistics on EVI, and export
+for (j, h) in enumerate(hls_items)
+
+    outName = split(h[&quot;assets&quot;][&quot;browse&quot;][&quot;href&quot;], &#39;/&#39;)[end]
+    outName = replace(outName, &quot;.jpg&quot; =&gt; &quot;_EVI.grd&quot;)
+
+    tic()
+    try
+        evi_band_links = []
+        # Define which HLS product is being accessed
+        if (split(h[&quot;assets&quot;][&quot;browse&quot;][&quot;href&quot;], &#39;/&#39;)[5] == &quot;HLSS30.015&quot;)
+            evi_bands = [&quot;B8A&quot;, &quot;B04&quot;, &quot;B02&quot;, &quot;Fmask&quot;] # NIR RED BLUE Quality for S30
+        else
+            evi_bands = [&quot;B05&quot;, &quot;B04&quot;, &quot;B02&quot;, &quot;Fmask&quot;] # NIR RED BLUE Quality for L30
+        end
+
+        for a in h[&quot;assets&quot;]
+            for b in evi_bands
+                (b == first(a)) &amp;&amp; append!(evi_band_links, [h[&quot;assets&quot;][first(a)][&quot;href&quot;]])
+            end
+        end
+
+        # Use vsicurl to load the data directly into memory (be patient, may take many seconds)
+        for e in evi_band_links
+            if split(e,&#39;.&#39;)[end-1] == evi_bands[4] # Mask index
+                local fmask = GMT.Gdal.read(&quot;/vsicurl/&quot;*e);
+                global fmask_cropped = gdaltranslate(fmask, [&quot;-projwin&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[4])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[3])&quot;]);
+                break
+            end
+        end
+
+        @inbounds for k = 1:length(fmask_cropped)
+            (mask[k] == 0) &amp;&amp; (fmask_cropped[k] = 1)
+        end
+
+        all(fmask_cropped.image .!= 0) &amp;&amp; continue
+
+        for e in evi_band_links
+            if split(e,&#39;.&#39;)[end-1] == evi_bands[1] # NIR index
+                global nir = GMT.Gdal.read(&quot;/vsicurl/&quot;*e);
+            elseif split(e,&#39;.&#39;)[end-1] == evi_bands[2] # Red index
+                global red = GMT.Gdal.read(&quot;/vsicurl/&quot;*e);
+            elseif split(e,&#39;.&#39;)[end-1] == evi_bands[3] # Blue index
+                global blue = GMT.Gdal.read(&quot;/vsicurl/&quot;*e);
+            end
+        end
+
+        nir_cropped = gdaltranslate(nir, [&quot;-projwin&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[4])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[3])&quot;]);
+        red_cropped = gdaltranslate(red, [&quot;-projwin&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[4])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[3])&quot;]);
+        blue_cropped = gdaltranslate(blue, [&quot;-projwin&quot;, &quot;$(bb[1])&quot;, &quot;$(bb[4])&quot;, &quot;$(bb[2])&quot;, &quot;$(bb[3])&quot;]);
+
+        EVI = evi(blue_cropped, red_cropped, nir_cropped);
+
+        # Replace the flagged values by NaN
+        @inbounds for k = 1:length(EVI)
+            (fmask_cropped[k] != 0) &amp;&amp; (EVI[k] = NaN32)
+        end
+
+        #gmtwrite(outName, EVI)
+        gdaltranslate(EVI, save=outName)
+    catch err
+        println(err)
+    end
+    toc()
+
+    println(&quot;Processed file $j of $(length(hls_items))&quot;)
+end</code></pre><pre><code class="language-julia">eviFiles = [o for o in readdir() if endswith(o, &quot;EVI.grd&quot;)];</code></pre><pre><code class="language-julia">df = dateformat&quot;yyyymmddTHHMMSS&quot;;
+time = Vector{TimeType}(undef, length(eviFiles));
+for (i, e) in enumerate(eviFiles)
+    t = split(split(e, &quot;.v1.5&quot;)[1], &quot;.&quot;)[end];
+    # Julia doesn&#39;t parse a date in yyyyjjjT... so must resort to brewed functions
+    mon, day = monthday(doy2date(t[5:7], t[1:4]));
+    time[i] = DateTime(@sprintf(&quot;%s%.02d%.02d%s&quot;, t[1:4], mon, day, t[8:end]), df);
+end
+
+# Get the permutation vector p that puts time[p] in sorted order
+p = sortperm(time);
+eviFiles = eviFiles[p];		# Sort the file names in ascending time order
+time = time[p];				# and the time too.</code></pre><p>Save all EVI estimations in a netCDF 3d (a cube) file</p><pre><code class="language-julia">stackgrids(eviFiles, time, z_unit=&quot;unix&quot;, save=&quot;evi_cube.nc&quot;)</code></pre><p>Interpolate along all layers at a point with coordinates <em>x = 580740</em>; <em>y = 4418042</em></p><pre><code class="language-julia">D = grdinterpolate(&quot;evi_cube.nc&quot;, pt=(580740,4418042));</code></pre><p>Now, plot the time series showing the distribution of EVI values for our farm field.</p><pre><code class="language-julia">imshow(D, par=(TIME_SYSTEM=&quot;UNIX&quot;,), coltypes=:t)</code></pre><img src="../output_94_0.png" width="500" class="center"/></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../Aqua_sst/remotes_L2_SST/">« Aqua SST</a><a class="docs-footer-nextpage" href="../../L8cube_img/remotes_L8_cube_img/">Landsat 8 images »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Sunday 12 May 2024 15:24">Sunday 12 May 2024</span>. Using Julia version 1.10.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
