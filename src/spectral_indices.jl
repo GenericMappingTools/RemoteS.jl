@@ -208,6 +208,9 @@ Normalised Burn Ratio Index. Garcia 1991
 NBRI = (nir - swir2) / (nir + swir2)
 """
 nbri(nir, swir2; kw...) = sp_indices(swir2, nir; index="NBRI", kw...)
+nbri(cube::String;
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NBRI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
 nbri(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
      bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "NBRI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
