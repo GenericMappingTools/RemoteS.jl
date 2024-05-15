@@ -9,6 +9,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Dates  = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+DecisionTree = "7806a523-6efd-50cb-b5f6-3fa6f1930dbb"
 
 [weakdeps]
 SatelliteToolboxTle = "7ff27aeb-5fff-4337-a9ee-a9fe6b7ed35e"
@@ -34,3 +35,4 @@ PrecompileTools = "1.0"
 SatelliteToolboxTle = "1"
 SatelliteToolboxPropagators = "0.3"
 SatelliteToolboxTransformations = "0.1"
+DecisionTree = "0.12"

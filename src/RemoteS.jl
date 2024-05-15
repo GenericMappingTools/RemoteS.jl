@@ -1,7 +1,8 @@
 module RemoteS
 
-using GMT, Printf, Statistics, Dates#, Requires
+using GMT, Printf, Statistics, Dates
 using PrecompileTools
+using DecisionTree
 
 const SCENE_HALFW = Dict("AQUA" => 1163479, "TERRA" => 1163479, "LANDSAT8" => 92500)	# half widths
 
@@ -11,8 +12,9 @@ end
 
 export
 	cutcube, subcube, dn2temperature, dn2radiance, dn2reflectance, reflectance_surf, grid_at_sensor, truecolor,
-	clg, clre, evi, evi2, gndvi, mndwi, mtci, mcari, msavi, mbri, ndvi, ndwi, ndwi2, ndrei1,
+	clg, clre, evi, evi2, gndvi, mndwi, mtci, mcari, msavi, nbri, ndvi, ndwi, ndwi2, ndrei1,
 	ndrei2, satvi, savi, slavi,
+	classify, train_raster,
 	clip_orbits, findscenes, sat_scenes, sat_tracks, reportbands
 
 include("grid_at_sensor.jl")
