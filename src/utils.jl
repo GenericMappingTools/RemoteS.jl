@@ -752,3 +752,79 @@ function reflectance_surf(fname::String; band::Int=0, mtl::String="", save::Stri
 	(save != "") && gdaltranslate(G, dest=save)
 	return (save != "") ? nothing : G
 end
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    I = classify(cube::GItype, train::Union{Vector{<:GMTdataset}, String}) -> GMTimage
+
+- `cube`: The cube wtih band data to classify.
+- `train`: A vector of GMTdatasets or a file name of one containing the polygons used to train the model.
+   NOTE: The individual datasets MUST have associated an attribute called "class" containing the class name as a string.
+   This can be achieved for text data in the form of a GMT multi-segment file (one where segments are separated by the '>'
+   symbol) if the multi-segment separator line contains the text ``Attrib(class=name)``
+
+Returns an image with the classification results where each class name was assigned a different integer number.
+That colorized image can plotted with ``viz(I, colorbar=true)``.
+"""
+function classify(cube::GItype, train::Union{Vector{<:GMTdataset}, String})
+	model, classes = train_raster(cube, train)
+	I = classify(cube, model)
+	cpt = makecpt(cmap=:categorical, range=classes);
+	image_cpt!(I, cpt)
+	return I
+end
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    I = classify(cube::GItype, model; class_names::Union{String, Vector{String}}="") -> GMTimage
+
+- `cube`: The cube wtih band data to classify.
+- `model`: The trained model obtained from the `train_raster` function.
+- `class_names`: A vector of strings with the class names to be used in the categorical colorbar or a
+   comma separated single with those class names. The number of class names must match the number used
+   when training the model with `train_raster`.
+"""
+function classify(cube::GItype, model; class_names::Union{String, Vector{String}}="")
+	nr, nc = size(cube)[1:2];
+	mat = Vector{UInt8}(undef, nr*nc);
+	t = permutedims(cube.z, (1,3,2));
+	i1 = 1;	i2 = nr;
+	for k = 1:nc			# Loop over columns
+		mat[i1:i2] = DecisionTree.predict(model, Float64.(t[:,:,k]))
+		i1 = i2 + 1
+		i2 = i1 + nr - 1
+	end
+	I = mat2img(reshape(mat, nc,nr), cube);
+	(class_names == "") && return I			# No class names, no CPT
+	classes = isa(class_names, Vector) ? join(class_names, ",") : class_names
+	cpt = makecpt(cmap=:categorical, range=classes);
+	image_cpt!(I, cpt)
+	return I
+end
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    model, classes = train_raster(cube::GItype, train::Union{Vector{<:GMTdataset}, String}; np::Int=0, density=0.1)
+
+- `cube`: The cube wtih band data to classify.
+- `train`: A vector of GMTdatasets or a file name of one containing the polygons used to train the model.
+   NOTE: The individual datasets MUST have associated an attribute called "class" containing the class name as a string.
+   This can be achieved for text data in the form of a GMT multi-segment file (one where segments are separated by the '>'
+   symbol) if the multi-segment separator line contains the text ``Attrib(class=name)``
+- `np`: Number of points per polygon to be determined by ``randinpolygon``
+- `density`: Alternative to `np`. See also the help of the ``randinpolygon`` function.
+
+Returns the trained model and the class names.
+"""
+function train_raster(cube::GItype, train::Union{Vector{<:GMTdataset}, String}; np::Int=0, density=0.1)
+	samples = isa(train, String) ? gmtread(train) : train
+	pts = randinpolygon(samples, np=np, density=density);
+	LCsamp = grdinterpolate(cube, S=pts, nocoords=true);
+	features = GMT.ds2ds(LCsamp);
+	labels = parse.(UInt8, vcat([fill(LCsamp[k].attrib["id"], size(LCsamp[k],1)) for k=1:length(LCsamp)]...));
+
+	model = DecisionTree.DecisionTreeClassifier(max_depth=3);
+	DecisionTree.fit!(model, features, labels)
+	classes = join(unique(GMT.make_attrtbl(samples, false)[1][:,1]), ",")
+	return model, classes
+end
