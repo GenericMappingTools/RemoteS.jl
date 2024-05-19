@@ -785,21 +785,44 @@ end
    when training the model with `train_raster`.
 """
 function classify(cube::GItype, model; class_names::Union{String, Vector{String}}="")
-	nr, nc = size(cube)[1:2];
-	mat = Vector{UInt8}(undef, nr*nc);
-	t = permutedims(cube.z, (1,3,2));
-	i1 = 1;	i2 = nr;
+	nr, nc = size(cube)[1:2]
+	mat  = Vector{UInt8}(undef, nr*nc)
+	t = permutedims(cube.z, (1,3,2))
+	i1 = 1;	i2 = nr
 	for k = 1:nc			# Loop over columns
 		mat[i1:i2] = DecisionTree.predict(model, Float64.(t[:,:,k]))
 		i1 = i2 + 1
 		i2 = i1 + nr - 1
 	end
-	I = mat2img(reshape(mat, nc,nr), cube);
+	I = mat2img(reshape(mat, nr,nc), cube)
 	(class_names == "") && return I			# No class names, no CPT
 	classes = isa(class_names, Vector) ? join(class_names, ",") : class_names
-	cpt = makecpt(cmap=:categorical, range=classes);
+	cpt = makecpt(cmap=:categorical, range=classes)
 	image_cpt!(I, cpt)
 	return I
+end
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    I = classification_proba(cube::GItype, model; class_number=1) -> GMTimage
+
+Returns an image with the assigned probabilities when classifying the class number `class_number`
+
+- `cube`: The cube wtih band data to classify
+- `model`: is the model obtained from the `train_raster` function
+- `class_number`: is the class number to be classified
+"""
+function classification_proba(cube::GItype, model; class_number::Int=1)
+	nr, nc = size(cube)[1:2]
+	mat  = Vector{UInt8}(undef, nr*nc)
+	t = permutedims(cube.z, (1,3,2))
+	i1 = 1;	i2 = nr
+	for k = 1:nc			# Loop over columns
+		mat[i1:i2] = round.(UInt8, predict_proba(model, Float64.(t[:,:,k]))[:,class_number] * 255)
+		i1 = i2 + 1
+		i2 = i1 + nr - 1
+	end
+	mat2img(reshape(mat, nc,nr), cube)
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -816,15 +839,47 @@ end
 
 Returns the trained model and the class names.
 """
-function train_raster(cube::GItype, train::Union{Vector{<:GMTdataset}, String}; np::Int=0, density=0.1)
+function train_raster(cube::GItype, train::Union{Vector{<:GMTdataset}, String}; np::Int=0, density=0.1, max_depth=3)
 	samples = isa(train, String) ? gmtread(train) : train
-	pts = randinpolygon(samples, np=np, density=density);
-	LCsamp = grdinterpolate(cube, S=pts, nocoords=true);
-	features = GMT.ds2ds(LCsamp);
+	pts = randinpolygon(samples, np=np, density=density)
+	LCsamp = grdinterpolate(cube, S=pts, nocoords=true)
+	features = GMT.ds2ds(LCsamp)
 	labels = parse.(UInt8, vcat([fill(LCsamp[k].attrib["id"], size(LCsamp[k],1)) for k=1:length(LCsamp)]...));
 
-	model = DecisionTree.DecisionTreeClassifier(max_depth=3);
+	model = DecisionTree.DecisionTreeClassifier(max_depth=max_depth)
 	DecisionTree.fit!(model, features, labels)
 	classes = join(unique(GMT.make_attrtbl(samples, false)[1][:,1]), ",")
 	return model, classes
 end
+
+# ----------------------------------------------------------------------------------------------------------
+#=
+From https://rspatial.org/rs/5-supclassification.html
+
+TODO. Simplify this with a call to classify() and make it an example.
+
+samp = gmtread("samples.shp.zip");
+pts = randinpolygon(samp, density=0.02);
+C = gdalread("LC08_L1TP_20210525_02_cube.tiff");
+LCsamp = grdinterpolate(C, S=pts, nocoords=true);
+features = GMT.ds2ds(LCsamp);
+#labels = vcat([fill(LCsamp[k].attrib["class"], size(LCsamp[k],1)) for k=1:length(LCsamp)]...);
+labels = parse.(UInt8, vcat([fill(LCsamp[k].attrib["id"], size(LCsamp[k],1)) for k=1:length(LCsamp)]...));
+
+using DecisionTree
+model = DecisionTreeClassifier(max_depth=3);
+fit!(model, features, labels)
+nr, nc = size(C)[1:2];
+mat = Array{UInt8}(undef, nr*nc);
+t = permutedims(C.z, (1,3,2));
+i1 = 1;	i2 = nr;
+for k = 1:nc			# Loop over columns
+	mat[i1:i2] = predict(model, t[:,:,k])
+	i1 = i2 + 1
+	i2 = i1 + nr - 1
+end
+I = mat2img(reshape(mat, nc,nr), C);
+cpt = makecpt(cmap=:categorical, range="cropland,water,fallow,built,open");
+image_cpt!(I, cpt)
+viz(I, colorbar=true)
+=#
