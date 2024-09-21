@@ -12,8 +12,8 @@ end
 
 export
 	cutcube, subcube, dn2temperature, dn2radiance, dn2reflectance, reflectance_surf, grid_at_sensor, truecolor,
-	clg, clre, evi, evi2, gndvi, mndwi, mtci, mcari, msavi, nbri, ndvi, ndwi, ndwi2, ndrei1,
-	ndrei2, satvi, savi, slavi,
+	clg, clre, evi, evi2, gli, gndvi, mndwi, mtci, mcari, msavi, nbri, ndvi, ndwi, ndwi2, ndrei1,
+	ndrei2, satvi, savi, slavi, tgi, vari,
 	classify, train_raster,
 	clip_orbits, findscenes, sat_scenes, sat_tracks, reportbands
 
