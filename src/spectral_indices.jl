@@ -1,6 +1,6 @@
 const generic_docs = "
 - The first form accepts inputs as matrices, or file names of the data bands.
-- The second form is more versatile but also more complex to describe.
+- The last form is more versatile but also more complex to describe.
   - `cube`: Is the file name of a 'cube', a multi-layered file normally created with the [`cutcube`](@ref) function.
      If this file was created with band descriptions one can use the `bands` or the `bandnames` options.
   - `bands`: _cubes_ created with [`cutcube`](@ref) assign descriptions starting with \"Band1 ...\" an so on
@@ -12,13 +12,18 @@ const generic_docs = "
   - `bandnames`: When we know the common designation of a band, for example \"Green\", or any part of a band
     description, for example \"NIR\", we can use that info to create a `bandnames` string vector that will be
     matched against the cube's bands descriptions.
-- `kwargs`:
+
+### Kwargs
   - `threshold`: When a threshold is provided we return a GMTgrid where `vals[ij] < threshold = NaN`
   - `classes`: is a vector with up to 3 elements (class separators) and we return a  UInt8 GMTimage with the
     indices categorized into vals[ij] > classes[1] = 1; vals[ij] > classes[2] = 2; vals[ij] > classes[3] = 3 and 0 otherwise.
   - `mask`: Used together with `threshold` outputs a UInt8 GMTimage mask with `vals[ij] >= threshold = 255` and 0 otherwise
      If `mask=-1` (or any other negative number) we compute instead a mask where `vals[ij] < threshold = 255` and 0 otherwise
   - `save`: Use `save=\"file_name.ext\"` to save the result in a disk file. File format is picked from file extension.
+  - `order` | `bands_order` | `rgb`: For the ``GLI``, ``TGI`` and ``VARI`` (RGB) indices, we allow to reorder the bands
+    and change the expected RGB order. Pass in a string, or symbol, with the color order. For example, `order=:rbg`
+	will swap the green and blue components making the result index identify the _reds_ instead of the _greens_.
+	Not good for vegetation indices, but potentially useful for other purposes.
 
 If none of `bands`, `layers` or `bandnames` is provided, we use the default band names shown in the first form.
 
@@ -477,6 +482,9 @@ function helper_sp_indices(kwargs...)
 	(haskey(dd, :mask))      && delete!(dd, :mask)
 	(haskey(dd, :classes))   && delete!(dd, :classes)
 	(haskey(dd, :threshold)) && delete!(dd, :threshold)
+	(haskey(dd, :rgb))       && delete!(dd, :rgb)
+	(haskey(dd, :order))     && delete!(dd, :order)
+	(haskey(dd, :bands_order)) && delete!(dd, :bands_order)
 	(length(d) > 0) && println("Warning: the following options were not consumed in sp_indices => ", keys(dd))
 	return mask, rev_mask, classes, threshold, save_name, dbg
 end
@@ -498,11 +506,21 @@ function sp_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="
 end
 
 # ----------------------------------------------------------------------------------------------------------
-function sp_indices(rgb::GMT.GMTimage{UInt8, 3}; index::String="", kwargs...)
+function sp_indices(rgb::GMT.GMTimage{UInt8, 3}; index::String="", kw...)
 	# This method applyies only in the case of the RGB vegetation indices (GLI, TGI, VARI)
 	(index != "GLI" && index != "TGI" && index != "VARI") && error("With RGB images input, only `GLI`, `TGI` and `VARI` indices are supported, not $index")
 	(rgb.layout[3] != 'B') && error("For now, only band interleavedRGB composition is supported and not $(rgb.layout)")
-	img = sp_indices(view(rgb, :, :, 1), view(rgb, :, :, 2), view(rgb, :, :, 3); index=index, kwargs...)
+	# Here we are allowing cheating the indices by altering the bands order. These indices expect (were deffined)
+	# the bands in RGB order but nothing stops us to to change that and convert a green index into a blue index.
+	# For that pass string with the R,G,B in the wished order to the 'order' option. E.g. 'order="rbg"'
+	bds::Vector{Int} = [1,2,3]			# The default RGB order
+	if ((val = find_in_kwargs(kw, [:order :bands_order :rgb])[1]) !== nothing)
+		o = lowercase(string(val))
+		bds[1] = (o[1] == 'r') ? 1 : (o[1] == 'g') ? 2 : (o[1] == 'b') ? 3 : error("Non 'r', 'g' or 'b' in the 'order' option")
+		bds[2] = (o[2] == 'r') ? 1 : (o[2] == 'g') ? 2 : (o[2] == 'b') ? 3 : error("Non 'r', 'g' or 'b' in the 'order' option")
+		bds[3] = (o[3] == 'r') ? 1 : (o[3] == 'g') ? 2 : (o[3] == 'b') ? 3 : error("Non 'r', 'g' or 'b' in the 'order' option")
+	end
+	img = sp_indices(view(rgb, :, :, bds[1]), view(rgb, :, :, bds[2]), view(rgb, :, :, bds[3]); index=index, kw...)
 	return mat2grid(img, rgb)
 end
 

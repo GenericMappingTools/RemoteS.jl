@@ -66,6 +66,7 @@ G2 = gli("LC08_cube.tiff"); println("	gli 2")
 G3 = gli(cube);				println("	gli 3")
 @test G1.range[5:6] == G2.range[5:6]
 @test G1.range[5:6] == G3.range[5:6]
+G1 = gli(R,G,B, order="rbg"); println("	gli 4")
 
 G1 = tgi(R,G,B); 			println("	tgi 1")
 G2 = tgi("LC08_cube.tiff"); println("	tgi 2")
