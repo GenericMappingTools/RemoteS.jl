@@ -48,34 +48,59 @@ B = subcube("LC08_cube.tiff", bandnames=["blue"]);	println("	subcube B")
 NIR = subcube("LC08_cube.tiff", bandnames=["nir"]);	println("	subcube NIR")
 SW1 = subcube("LC08_cube.tiff", bandnames=["swir1"]);	println("	subcube SW1")
 SW2 = subcube("LC08_cube.tiff", bandnames=["swir2"]);	println("	subcube SW2")
+
 G1 = evi("LC08_cube.tiff"); println("	evi 1")
 G2 = evi(B, R, NIR);		println("	evi 2")
 G3 = evi(cube,layers=[1,3,4]);		println("	evi 3")
 @test G1.range[5:6] == G2.range[5:6]
 @test G1.range[5:6] == G3.range[5:6]
+
 G1 = evi2("LC08_cube.tiff"); println("	evi2 1")
 G2 = evi2(R, NIR);			println("	evi2 2")
 G3 = evi2(cube);			println("	evi2 3")
 @test G1.range[5:6] == G2.range[5:6]
 @test G1.range[5:6] == G3.range[5:6]
+
+G1 = gli(R,G,B); 			println("	gli 1")
+G2 = gli("LC08_cube.tiff"); println("	gli 2")
+G3 = gli(cube);				println("	gli 3")
+@test G1.range[5:6] == G2.range[5:6]
+@test G1.range[5:6] == G3.range[5:6]
+
+G1 = tgi(R,G,B); 			println("	tgi 1")
+G2 = tgi("LC08_cube.tiff"); println("	tgi 2")
+G3 = tgi(cube);				println("	tgi 3")
+@test G1.range[5:6] == G2.range[5:6]
+@test G1.range[5:6] == G3.range[5:6]
+
+G1 = vari(R,G,B); 			println("	vari 1")
+G2 = vari("LC08_cube.tiff"); println("	vari 2")
+G3 = vari(cube);			println("	vari 3")
+@test G1.range[5:6] == G2.range[5:6]
+@test G1.range[5:6] == G3.range[5:6]
+
 G1 = msavi("LC08_cube.tiff"); println("	msavi 1")
 G2 = msavi(R, NIR);			println("	msavi 2")
 G3 = msavi(cube);			println("	msavi 3")
 @test G1.range[5:6] == G2.range[5:6]
 @test G1.range[5:6] == G3.range[5:6]
+
 G1 = ndvi("LC08_cube.tiff"); println("	ndvi 1")
 G2 = ndvi(R, NIR);			println("	ndvi 2")
 G3 = ndvi(cube);			println("	ndvi 3")
 @test G1.range[5:6] == G2.range[5:6]
 @test G1.range[5:6] == G3.range[5:6]
+
 G1 = satvi("LC08_cube.tiff"); println("	satvi 1")
 G2 = satvi(R, SW1, SW2);	println("	satvi 2")
 @test G1.range[5:6] == G2.range[5:6]
+
 G1 = savi("LC08_cube.tiff"); println("	savi 1")
 G2 = savi(R, NIR);			println("	savi 2")
 G3 = savi(cube);			println("	savi 3")
 @test G1.range[5:6] == G2.range[5:6]
 @test G1.range[5:6] == G3.range[5:6]
+
 G1 = slavi("LC08_cube.tiff"); println("	slavi 1")
 G2 = slavi(R, NIR, SW2);	println("	slavi 2")
 G3 = slavi(cube);			println("	slavi 3")

@@ -28,13 +28,17 @@ Returns either a Float32 GMTgrid or a UInt8 GMTimage if the `mask` or `classes` 
 "
 
 # ----------------------------------------------------------------------------------------------------------
+# Helper function to compute Spectral Indices from a 'cube' file and somehow band selection.
 function helper_si_method(cube::String, index::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[],
 	                      bandnames::Vector{String}=String[], defbandnames::Vector{String}=String[], kw...)
-	# Helper function to compute Spectral Indices from a 'cube' file and somehow band selection.
+	if (index == "GLI" || index == "TGI" || index == "VARI") && ((ext = lowercase(splitext(cube)[2])) == ".png" || ext == ".jpg")
+		return sp_indices(gdalread(cube); index=index, kw...)	# Try to read it as an image
+	end
 	(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bandnames = defbandnames)
 	sc = subcube(cube, bands=bands, layers=layers, bandnames=bandnames)
-	sp_indices(sc, collect(1:size(sc,3)); index=index, kw...)	# Here we know that the layers are all of those in scube
+	sp_indices(sc, collect(1:size(sc,3)); index=index, kw...)	# Here we know that the layers are all of those in cube
 end
+
 # Method for in memory cubes
 function helper_si_method(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}}, index::String;
                           bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], defbandnames::Vector{String}=String[], kw...)
@@ -46,25 +50,35 @@ end
 # ----------------------------------------------------------------------------------------------------------
 """
     CLG = clg(green, redEdge3; kw...)
+or
+
+    CLG = clg(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Green cholorphyl index. Wu et al 2012.
 
 CLG = (redEdge3)/(green)-1 
 """
 clg(green, redEdge3; kw...) = sp_indices(green, redEdge3; index="CLG", kw...)
+clg(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "CLG"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "redEdge3"], kw...)
 clg(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
-     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+    bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "CLG"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "redEdge3"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
     CLRE = clre(redEdge1, redEdge3; kw...)
+or
+
+    CLRE = clre(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 RedEdge cholorphyl index. Clevers and Gitelson 2013.
 
 CLRE = (redEdge3)/(redEdge1)-1
 """
 clre(redEdge1, redEdge3; kw...) = sp_indices(redEdge1, redEdge3; index="CLRE", kw...)
+clre(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "CLRE"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["redEdge1", "redEdge3"], kw...)
 clre(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
      bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "CLRE"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["redEdge1", "redEdge3"], kw...)
@@ -74,7 +88,7 @@ clre(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     EVI = evi(blue, red, nir; kw...)
 or
 
-    EVI = evi(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    EVI = evi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Enhanced vegetation index. Huete et al 1990
 
@@ -96,7 +110,7 @@ evi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     EVI2 = evi2(red, nir; kw...)
 or
 
-    EVI2 = evi2(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    EVI2 = evi2(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Two-band Enhanced vegetation index. Jiang et al 2008
 
@@ -116,7 +130,7 @@ evi2(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     GNDVI = gndvi(green, nir; kw...)
 or
 
-    GNDVI = gndvi(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    GNDVI = gndvi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 green Normalized diff vegetation index: more sensitive to cholorphyll than ndvi. Gitelson, A., and M. Merzlyak
 
@@ -133,10 +147,34 @@ gndvi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
 
 # ----------------------------------------------------------------------------------------------------------
 """
+    GLI = gli(red, green, blue; kw...)
+or (here fname is a .png or .jpg file name)
+
+    GLI = gli(fname::String; kw...)
+or
+
+    GLI = gli(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+
+Green Leaf Index. Louhaichi, M., Borman, M.M., Johnson, D.E., 2001. 
+
+GLI = (2green - red - blue) / (2green + red + blue)
+
+$(generic_docs)
+"""
+gli(rgb::GMTimage{UInt8, 3}; kw...) = sp_indices(rgb; index="GLI", kw...)
+gli(red, green, blue; kw...) = sp_indices(red, green, blue; index="GLI", kw...)
+gli(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "GLI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "green", "blue"], kw...)
+gli(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+    bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "GLI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "green", "blue"], kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
     MNDWI = mndwi(green, swir2; kw...)
 or
 
-    MNDWI = mndwi(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    MNDWI = mndwi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Modified Normalised Difference Water Index. Xu2006
 
@@ -168,13 +206,19 @@ mtci(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
 # ----------------------------------------------------------------------------------------------------------
 """
     MCARI = mcari(green, red, redEdge1; kw...)
+or
+
+	MCARI = mcari(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Modified Chlorophyll Absorption ratio index. Daughtery et al. 2000
 
 MCARI = (redEdge1 - red - 0.2 * (redEdge1 - green)) * (redEdge1 / red)
+
+(Sentinel-2 Band 5 (VNIR), Band 4 (Red) and Band 3 (Green)).
 """
-# Sentinel-2 Band 5 (VNIR), Band 4 (Red) and Band 3 (Green).
 mcari(green, red, redEdge1; kw...) = sp_indices(green, red, redEdge1; index="MCARI", kw...)
+mcari(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "MCARI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "red", "redEdge1"], kw...)
 mcari(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
       bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "MCARI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "red", "redEdge1"], kw...)
@@ -184,7 +228,7 @@ mcari(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     MSAVI = msavi(red, nir; kw...)
 or
 
-    MSAVI = msavi(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    MSAVI = msavi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Modified soil adjusted vegetation index. Qi 1994
 
@@ -202,6 +246,9 @@ msavi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
 # ----------------------------------------------------------------------------------------------------------
 """
     NBRI = nbri(nir, swir3; kw...)
+or
+
+	NBRI = nbri(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Normalised Burn Ratio Index. Garcia 1991
 
@@ -220,7 +267,7 @@ nbri(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     NDVI = ndvi(red, nir; kw...)
 or
 
-    NDVI = ndvi(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    NDVI = ndvi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Compute the NDVI vegetation index. Input can be either the bands file names, or GMTimage objects
 with the band's data.
@@ -241,7 +288,7 @@ ndvi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     NDWI = ndwi(green, nir; kw...)
 or
 
-    NDWI = ndwi(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    NDWI = ndwi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Normalized difference water index. McFeeters 1996. NDWI => (green - nir)/(green + nir)
 
@@ -261,7 +308,7 @@ ndwi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     NDWI2 = ndwi2(nir, swir2; kw...)
 or
 
-    NDWI2 = ndwi2(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    NDWI2 = ndwi2(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Normalized difference water index. Gao 1996, Chen 2005 (also known as Normalized Difference Moisture Index
 NDBI and LSWI)
@@ -293,19 +340,27 @@ ndrei1(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
 # ----------------------------------------------------------------------------------------------------------
 """
     NDREI2 = ndrei2(redEdge1, redEdge3; kw...)
+or
+
+	NDREI2 = ndrei2(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Normalized difference red edge index 2. Barnes et al 2000
 
 NDREI2 = (redEdge3 - redEdge1) / (redEdge3 + redEdge1)
 """
 ndrei2(redEdge1, redEdge3; kw...) = sp_indices(redEdge1, redEdge3; index="NDREI2", kw...)
+ndrei2(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NDREI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["redEdge1", "redEdge3"], kw...)
 ndrei2(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
        bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
-	helper_si_method(cube, "NDREI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["redEdge1", "redEdge2"], kw...)
+	helper_si_method(cube, "NDREI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["redEdge1", "redEdge3"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
     SATVI = satvi(red, swir2, swir3; kw...)
+or
+
+	SATVI = satvi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Soil adjusted total vegetation index. Marsett 2006
 
@@ -323,7 +378,7 @@ satvi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     SAVI = savi(red, nir; kw...)
 or
 
-    SAVI = savi(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    SAVI = savi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Soil adjusted vegetation index. Huete 1988
 
@@ -343,7 +398,7 @@ savi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
     SLAVI = slavi(red, nir, swir2; kw...)
 or
 
-    SLAVI = slavi(cube::String; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+    SLAVI = slavi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
 
 Specific Leaf Area Vegetation Index. Lymburger 2000
 
@@ -359,16 +414,64 @@ slavi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
 	helper_si_method(cube, "SLAVI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "nir", "swir2"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
+"""
+    TGI = tgi(red, green, blue; kw...)
+or (here fname is a .png or .jpg file name)
+
+    TGI = tgi(fname::String; kw...)
+or
+
+    TGI = tgi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+
+Triangular Greenness Index. Hunt et al. 2013
+
+TGI = green - 0.39 * red - 0.61 * blue
+
+$(generic_docs)
+"""
+tgi(rgb::GMTimage{UInt8, 3}; kw...) = sp_indices(rgb; index="TGI", kw...)
+tgi(red, green, blue; kw...) = sp_indices(red, green, blue; index="TGI", kw...)
+tgi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "TGI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "green", "blue"], kw...)
+tgi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+    bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "TGI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "green", "blue"], kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    VARI = vari(red, green, blue; kw...)
+or (here fname is a .png or .jpg file name)
+
+    VARI = vari(fname::String; kw...)
+or
+
+    VARI = vari(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+
+Visible Atmospherically Resistant Index. Gitelson, A.A., Kaufman, Y.J., Stark, R., Rundquist, D., 2002
+
+VARI = (green - red) / (green + red - blue)
+
+$(generic_docs)
+"""
+vari(rgb::GMTimage{UInt8, 3}; kw...) = sp_indices(rgb; index="VARI", kw...)
+vari(red, green, blue; kw...) = sp_indices(red, green, blue; index="VARI", kw...)
+vari(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "VARI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "green", "blue"], kw...)
+vari(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+    bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "VARI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["red", "green", "blue"], kw...)
+
+# ----------------------------------------------------------------------------------------------------------
 function helper_sp_indices(kwargs...)
 	# Helper function that is called by two different sp_indices methods
 	d = KW(kwargs)
-	mask = ((val = find_in_dict(d, [:mask], false)[1]) !== nothing)
+	mask::Bool = ((val = find_in_dict(d, [:mask], false)[1]) !== nothing)
 	rev_mask = (mask && val < 0) ? true : false		# See if we want to reverse the mask
 	threshold = find_in_dict(d, [:threshold], false)[1]
 	classes = (threshold === nothing) ? find_in_dict(d, [:classes])[1] : nothing
 	(mask && threshold === nothing) && error("The `mask` option requires the `threshold=x` option")
 	(classes !== nothing && length(classes) > 3) && (classes = classes[1:3]; @warn("`classes` maximum elements is 3. Clipping the others"))
-	save_name::String = ((val = find_in_dict(d, [:save], false)[1]) !== nothing) ? val : ""
+	save_name::String = ((val = find_in_dict(d, [:save], false)[1]) !== nothing) ? string(val) : ""
 	dbg = (find_in_dict(d, [:Vd :dbg])[1] !== nothing)
 	dd = d		# Copy to report unused keys (errors) but can't do it in 'd' because this function may be called twice
 	(haskey(dd, :mask))      && delete!(dd, :mask)
@@ -394,6 +497,16 @@ function sp_indices(bnd1::String, bnd2::String, bnd3::String=""; index::String="
 	sp_indices(Bnd1, Bnd2, Bnd3; index=index, kwargs...)
 end
 
+# ----------------------------------------------------------------------------------------------------------
+function sp_indices(rgb::GMT.GMTimage{UInt8, 3}; index::String="", kwargs...)
+	# This method applyies only in the case of the RGB vegetation indices (GLI, TGI, VARI)
+	(index != "GLI" && index != "TGI" && index != "VARI") && error("With RGB images input, only `GLI`, `TGI` and `VARI` indices are supported, not $index")
+	(rgb.layout[3] != 'B') && error("For now, only band interleavedRGB composition is supported and not $(rgb.layout)")
+	img = sp_indices(view(rgb, :, :, 1), view(rgb, :, :, 2), view(rgb, :, :, 3); index=index, kwargs...)
+	return mat2grid(img, rgb)
+end
+
+# ----------------------------------------------------------------------------------------------------------
 function sp_indices(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}}, bands::Vector{Int}; index::String="", kw...)
 	# This method recieves the cube and a vector with the bands list and calls the worker with @view
 	mask, _, classes, _, save_name, dbg = helper_sp_indices(kw...)	# Do this first because if it errors no point in continuing
@@ -414,12 +527,17 @@ function sp_indices(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:Abstrac
 	return (save_name == "") ? O : nothing
 end
 
+# ----------------------------------------------------------------------------------------------------------
 function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	# This is the method who does the real work.
 	(index == "") && error("Must select which index to compute")
 	@assert size(bnd1) == size(bnd2)
-	mask, rev_mask, classes, threshold, = helper_sp_indices(kwargs...)
-	img = (mask || classes !== nothing) ? fill(UInt8(0), size(bnd1)) : fill(NaN32, size(bnd1))
+	ismask, rev_mask, classes, threshold, = helper_sp_indices(kwargs...)
+	if ((ismask || classes !== nothing))
+		mask = fill(UInt8(0), size(bnd1))
+	else
+		img = fill(0.0f0, size(bnd1))		# Changed mind. Make 0.0f0 the neutral instead of NaN. Classification algos don't work with NaN
+	end
 
 	if (rev_mask) fcomp = <	else  fcomp = >  end 	# Which one to use when computing masks
 	mn = size(bnd1,1) * size(bnd1,2)
@@ -428,10 +546,10 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	if (index == "CLG" || index == "CLRE")
 		# Green cholorphyl index. Wu et al 2012		CLG               (redEdge3)/(green)-1
 		# RedEdge cholorphyl index. Clevers and Gitelson 2013	CLRE  (redEdge3)/(redEdge1)-1 
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t = bnd2[k] / bnd1[k] - 1
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -445,11 +563,11 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		@assert size(bnd3) == size(bnd2)
 		blue = bnd1;	red = bnd2;		nir = bnd3
 		_C2 = C2 * i_tmax;
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
 				t = G * ((t_nir - t_red) / (t_nir + C1 * t_red - _C2 * blue[k] + Levi))
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -461,11 +579,11 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	elseif (index == "EVI2")		# Two-band Enhanced vegetation index. Jiang et al 2008 
 		# G * ((nir - red) / (nir + 2.4 * red ))
 		red = bnd1;		nir = bnd2
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
 				t = G * (t_nir - t_red) / (t_red + 2.4 * t_nir)
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -475,14 +593,32 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
+	elseif (index == "GLI")			# Green Leaf Index 
+		# (2green - red - blue) / (2green + red + blue)
+		red = bnd1;		green = bnd2;		blue = bnd3
+		if (ismask)
+			@inbounds Threads.@threads for k = 1:mn
+				t_red  = red[k]*i_tmax;	t_green = 2 * green[k]*i_tmax;	t_blue = blue[k]*i_tmax
+				t_rb   = t_red + t_blue
+				t =  (t_green - t_rb) / (t_green + t_rb)
+				(fcomp(t, threshold)) && (mask[k] = 255)
+			end
+		else
+			@inbounds Threads.@threads for k = 1:mn
+				t_red  = red[k]*i_tmax;	t_green = 2 * green[k]*i_tmax;	t_blue = blue[k]*i_tmax
+				t_rb   = t_red + t_blue
+				img[k] =  (t_green - t_rb) / (t_green + t_rb)
+			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
+		end
 	elseif (index == "MTCI")		# Meris Terrestrial Chlorophyll Index. Clevers and Gitelson 2013, Dash and Curran 2004 
 		# (redEdge2-redEdge1) / (redEdge1-red)
 		red = bnd1;		redEdge1 = bnd2;	redEdge2 = bnd3
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t_redEdge1 = redEdge1[k]*i_tmax
 				t = (redEdge2[k]*i_tmax - t_redEdge1) / (t_redEdge1 - red[k]*i_tmax)
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -495,11 +631,11 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		# (redEdge1 - red - 0.2 * (redEdge1 - green)) * (redEdge1 / red)
 		# Sentinel-2 Band 5 (VNIR), Band 4 (Red) and Band 3 (Green).
 		green = bnd1;	red = bnd2;		redEdge1 = bnd3
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t_redEdge1 = redEdge1[k]*i_tmax;	t_red = red[k]*i_tmax
 				t = (t_redEdge1 - t_red - 0.2 * (t_redEdge1 - green[k]*i_tmax)) * (t_redEdge1 / t_red)
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -511,11 +647,11 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	elseif (index == "MSAVI")		# Modified soil adjusted vegetation index.
 		# nir + 0.5 - (0.5 * sqrt(pow(2.0 * nir + 1.0, 2) - 8.0 * (nir - (2.0 * red))))
 		red = bnd1;		nir = bnd2;
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t_nir = nir[k]*i_tmax
 				t = t_nir + 0.5 - (0.5 * sqrt((2 * t_nir + 1) ^2) - 8 * (t_nir - (2 * red[k]*i_tmax)))
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -534,11 +670,11 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		# NDBI, LSWI. Normalized difference water index. Gao 1996, Chen 2005; NDWI2 => (nir - swir2)/(nir + swir2)
 		# Normalized difference red edge index. Gitelson and Merzlyak 1994; (redEdge2 - redEdge1)/(redEdge2 + redEdge1)
 		# Normalized difference red edge index 2. Barnes et al 2000; (redEdge3 - redEdge1)/(redEdge3 + redEdge1)
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t1 = bnd1[k]*i_tmax;	t2 = bnd2[k]*i_tmax
 				t = (t2 - t1) / (t1 + t2)
-				(fcomp(t, threshold) && t <= 1) && (img[k] = 255)
+				(fcomp(t, threshold) && t <= 1) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -551,11 +687,11 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	elseif (index == "SATVI")		# Soil adjusted total vegetation index.
 		# ((swir1 - red) / (swir1 + red + L)) * (1.0 + L) - (swir2 / 2.0)
 		red = bnd1;		swir1 = bnd2;	swir2 = bnd3;
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t_red = red[k]*i_tmax;	t_swir1 = swir1[k]*i_tmax
 				t = ((t_swir1 - t_red) / (t_swir1 + t_red + L)) * (1.0 + L) - (swir2[k]*i_tmax / 2.0)
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -567,11 +703,11 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	elseif (index == "SAVI")		# Soil adjusted vegetation index. Huete1988
 		# (nir - red) * (1.0 + L) / (nir + red + L);
 		red = bnd1;		nir = bnd2;
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t_red = red[k]*i_tmax;	t_nir = nir[k]*i_tmax
 				t = (t_nir - t_red) * (1.0 + L) / (t_nir - t_red + L)
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -583,10 +719,10 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 	elseif (index == "SLAVI")		# Soil Adjusted Vegetation Index Huete 1988.
 		# nir / (red + swir2)
 		red = bnd1;		nir = bnd2;		swir2 = bnd3
-		if (mask)
+		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t = nir[k]*i_tmax / (red[k]*i_tmax + swir2[k]*i_tmax)
-				(fcomp(t, threshold)) && (img[k] = 255)
+				(fcomp(t, threshold)) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
@@ -594,12 +730,43 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
+	elseif (index == "TGI")			# Triangular Greenness Index. Hunt et al. 2013.
+		# green - 0.39 * red - 0.61 * blue
+		red = bnd1;		green = bnd2;		blue = bnd3
+		if (ismask)
+			@inbounds Threads.@threads for k = 1:mn
+				t = green[k]*i_tmax - 0.39 * red[k]*i_tmax - 0.61 * blue[k]*i_tmax
+				(fcomp(t, threshold)) && (mask[k] = 255)
+			end
+		else
+			@inbounds Threads.@threads for k = 1:mn
+				img[k] = green[k]*i_tmax - 0.39 * red[k]*i_tmax - 0.61 * blue[k]*i_tmax
+			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
+		end
+	elseif (index == "VARI")			# Visible Atmospherically Resistant Index.
+		#  (green - red) / (green + red - blue)
+		red = bnd1;		green = bnd2;		blue = bnd3
+		if (ismask)
+			@inbounds Threads.@threads for k = 1:mn
+				t_green = green[k]*i_tmax;	t_red = red[k]*i_tmax
+				t = (t_green - t_red) / (t_green + t_red - blue[k]*i_tmax)
+				(fcomp(t, threshold) && t <= 1) && (mask[k] = 255)
+			end
+		else
+			@inbounds Threads.@threads for k = 1:mn
+				t_green = green[k]*i_tmax;	t_red = red[k]*i_tmax
+				t = (t_green - t_red) / (t_green + t_red - blue[k]*i_tmax)
+				(t >= -1 && t <= 1) && (img[k] = t)
+			end
+			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
+		end
 	end
+
 	if (isa(bnd1, GMT.GMTimage) || isa(bnd1, GMT.GMTgrid))
-		if (mask || classes !== nothing)
-			I = mat2img(img, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y)
-			I.epsg = bnd1.epsg;		I.layout = "BRPa"
-			I.range[5], I.range[6] = 0, (mask) ? 255 : length(classes)
+		if (ismask || classes !== nothing)
+			I = mat2img(mask, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y, epsg=bnd1.epsg, layout="BRPa")
+			I.range[5], I.range[6] = 0, (ismask) ? 255 : length(classes)
 			return I
 		else
 			return mat2grid(img, bnd1)
