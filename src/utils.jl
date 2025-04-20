@@ -685,8 +685,10 @@ function dn2aux(fname::String, fun::String; band::Int=0, bandname::String="", ba
 		helper_dns_op(I, fact_x, fact_a, indNaN, o)
 	end
 
-	_band_layer, _pars, n_bands = parse_lsat8_file(fname, band=band, mtl=mtl)	# Cannot repeat 'pars' else Box.core
-	(_band_layer == 0 && n_bands == 1) && (band::Int = _pars.band)
+	if (band != 0)			# Else fish band from bandname
+		_band_layer, _pars, n_bands = parse_lsat8_file(fname, band=band, mtl=mtl)	# Cannot repeat 'pars' else Box.core
+		(_band_layer == 0 && n_bands == 1) && (band::Int = _pars.band)
+	end
 
 	helper_fun = (fun == "radiance") ? inn_helper_rad : inn_helper_ref		# Which helper function to use.
 	if (band == 0 && bandname == "" && bandnames == "")						# Reading a cube
