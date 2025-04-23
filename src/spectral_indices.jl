@@ -535,10 +535,15 @@ function sp_indices(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:Abstrac
 		o = sp_indices(@view(cube[:,:,bands[1]]), @view(cube[:,:,bands[2]]), @view(cube[:,:,bands[3]]); index=index, kw...)
 	end
 	if (mask || classes !== nothing)
-		O = mat2img(o, cube)
-		O.layout, O.range[5], O.range[6] = "BRPa", 0, (mask) ? 255 : length(classes)
+		if (isa(o, Matrix{<:Integer}))
+			# Don't know if this case still happens. It was for old code. Now, for masks, 'o' is already a GMTimage
+			O = mat2img(o, cube)
+			O.layout, O.range[5], O.range[6] = "BRPa", 0, (mask) ? 255 : length(classes)
+		else
+			O = o
+		end
 	else
-		O = mat2grid(o, cube)
+		O = isa(o, GMT.GMTgrid) ? o : mat2grid(o, cube)
 	end
 	O.names = [index * " index"]
 	(save_name != "") && gmtwrite(save_name, O)
@@ -781,13 +786,14 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		end
 	end
 
-	if (isa(bnd1, GMT.GMTimage) || isa(bnd1, GMT.GMTgrid))
+	if (isa(bnd1, GMT.GMTimage) || isa(bnd1, GMT.GMTgrid) || isa(parent(bnd1), GMTimage))	# Last one is when slice is a SubArray{...
 		if (ismask || classes !== nothing)
-			I = mat2img(mask, proj4=bnd1.proj4, wkt=bnd1.wkt, x=bnd1.x, y=bnd1.y, epsg=bnd1.epsg, layout="BRPa")
+			I = mat2img(mask, isa(bnd1, GMT.GMTimage) ? bnd1 : parent(bnd1))
+			I.layout="BRPa"
 			I.range[5], I.range[6] = 0, (ismask) ? 255 : length(classes)
 			return I
 		else
-			return mat2grid(img, bnd1)
+			return mat2grid(img, isa(bnd1, GMT.GItype) ? bnd1 : parent(bnd1))
 		end
 	else
 		return img
