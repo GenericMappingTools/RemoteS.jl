@@ -786,7 +786,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		end
 	end
 
-	if (isa(bnd1, GMT.GMTimage) || isa(bnd1, GMT.GMTgrid) || isa(parent(bnd1), GMTimage))	# Last one is when slice is a SubArray{...
+	if (isa(bnd1, GMT.GMTimage) || isa(bnd1, GMT.GMTgrid) || isa(parent(bnd1), GItype))	# Last one is when slice is a SubArray{...
 		if (ismask || classes !== nothing)
 			I = mat2img(mask, isa(bnd1, GMT.GMTimage) ? bnd1 : parent(bnd1))
 			I.layout="BRPa"
