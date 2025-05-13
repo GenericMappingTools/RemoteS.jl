@@ -167,6 +167,8 @@ function helper_find_sds(sds::String, info::String, ind_EOLs::Vector{UnitRange{I
 				((ind = findfirst(":lat", info)) === nothing) && (odeusse = true)
 			elseif (startswith(sds, "lon"))
 				((ind = findfirst(":lon", info)) === nothing) && (odeusse = true)
+			else
+				odeusse = true
 			end
 		end
 		odeusse && error("The band name -- " * sds * " -- does not exist")
@@ -241,7 +243,7 @@ function get_lon_lat_qual(sds_lon::String, sds_lat::String, qual, inc)
 	(inc[1] == 0.0) && (dx = diff(G.z[:, round(Int, size(G.z, 1)/2)]); dx = dx[dx .< 10])
 	lon = G.z[qual]
 	G = gd2gmt(sds_lat);
-	(inc[2] == 0.0) && (dy = diff(G.z[round(Int, size(G.z, 2)/2), :]); dy = dy[dy .< 10])
+	(inc[2] == 0.0) && (dy = diff(G.z[round(Int, size(G.z, 1)/2), :]); dy = dy[dy .< 10])
 	lat = G.z[qual]
 	return lon, lat, dx, dy
 end
