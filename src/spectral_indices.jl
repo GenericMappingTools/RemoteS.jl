@@ -693,15 +693,18 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		# NDBI, LSWI. Normalized difference water index. Gao 1996, Chen 2005; NDWI2 => (nir - swir2)/(nir + swir2)
 		# Normalized difference red edge index. Gitelson and Merzlyak 1994; (redEdge2 - redEdge1)/(redEdge2 + redEdge1)
 		# Normalized difference red edge index 2. Barnes et al 2000; (redEdge3 - redEdge1)/(redEdge3 + redEdge1)
+
+		# Need to swap bnd1 and bnd2 for indices that are defined as (shorter_cdo - longer_cdo)
+		_b1, _b2 = (index == "MNDWI" || index == "NBRI" || index == "NDWI" || index == "NDWI2" || index == "NDWI2") ? (bnd2, bnd1) : (bnd1, bnd2)
 		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
-				t1 = bnd1[k]*i_tmax;	t2 = bnd2[k]*i_tmax
+				t1 = _b1[k]*i_tmax;	t2 = _b2[k]*i_tmax
 				t = (t2 - t1) / (t1 + t2)
 				(fcomp(t, threshold) && t <= 1) && (mask[k] = 255)
 			end
 		else
 			@inbounds Threads.@threads for k = 1:mn
-				t1 = bnd1[k]*i_tmax;	t2 = bnd2[k]*i_tmax
+				t1 = _b1[k]*i_tmax;	t2 = _b2[k]*i_tmax
 				t = (t2 - t1) / (t1 + t2)
 				(t >= -1 && t <= 1) && (img[k] = t)
 			end
