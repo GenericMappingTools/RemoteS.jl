@@ -3,13 +3,17 @@ Here we will show examples of the type of things we can do with Landsat 8 data s
 
 The data was downloaded from [EarthExplorer](https://earthexplorer.usgs.gov) and comprises the scene with Product ID ```LC08_L1TP_204033_20210525_20210529_02_T1```.
 
-The _cube_ was made with this instructions (but they would only work if you had the scene files in your computer).
+The _cube_ was made with this instructions (but they would only work if you had the scene files in your computer and
+**must** adapt for your own path). Note that in ``template`` bellow, the  ```C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/```
+is the file path and the ```LC08_L1TP_204033_20210525_20210529_02_T1_B``` is the part of the file names that is common to all band names.
 
-```path = C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/LC08_L1TP_204033_20210525_20210529_02_T1_B;```
+```template = C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/LC08_L1TP_204033_20210525_20210529_02_T1_B;```
 
-```cube = cutcube(bands=[2,3,4,5,6,7,10], template=path, region=(485490,531060,4283280,4330290), save="LC08_L1TP_20210525_02_cube.tiff")```
+```cube = cutcube(bands=[2,3,4,5,6,7,10], template=template, region=(485490,531060,4283280,4330290), save="LC08_L1TP_20210525_02_cube.tiff")```
 
-This creates a 3D GeoTIFF file with the companion MTL file saved in it as Metadata. We can see the band info by running the ```reportbands``` function. That information is quite handy because we can, for example, just refer to the _red_ band and it will figure out which layer of the cube contains the Red band.
+This creates a 3D GeoTIFF file with the companion MTL file saved in it as Metadata. We can see the band info by running the 
+```reportbands``` function. That information is quite handy because we can, for example, just refer to the _red_ band and it
+will figure out which layer of the cube contains the Red band.
 
 
 ```julia
@@ -25,7 +29,8 @@ reportbands("c:/v/LC08_L1TP_20210525_02_cube.tiff")
  "Band 10 - Thermal IR 1 [10.6-11.19]"
 ```
 
-So to start our exploration the best is to generate a true color image. The ```truecolor``` function knows how to do that automatically including the histogram contrast stretch.
+So to start our exploration the best is to generate a true color image. The ```truecolor``` function knows how to do that
+automatically including the histogram contrast stretch.
 
 ```julia
 Irgb = truecolor("c:/v/LC08_L1TP_20210525_02_cube.tiff");
