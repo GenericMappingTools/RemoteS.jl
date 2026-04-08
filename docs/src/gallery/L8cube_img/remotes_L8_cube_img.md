@@ -3,18 +3,21 @@ Here we will show examples of the type of things we can do with Landsat 8 data s
 
 The data was downloaded from [EarthExplorer](https://earthexplorer.usgs.gov) and comprises the scene with Product ID ```LC08_L1TP_204033_20210525_20210529_02_T1```.
 
-The _cube_ was made with this instructions (but they would only work if you had the scene files in your computer and **must** adapt for your own path). Note that in ```tplt``` bellow, the  ```"C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/"``` is the file path and the ```LC08_L1TP_204033_20210525_20210529_02_T1_B``` is the part of the file names that is common to all band names.
+The _cube_ was made with this instructions. Note that the ```LC08_L1TP_204033_20210525_20210529_02_T1_B``` is the part of the file names that is common to all band names.
 
-```tplt = "C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/LC08_L1TP_204033_20210525_20210529_02_T1_B";```
-
-```cube = cutcube(bands=[2,3,4,5,6,7,10], template=tplt, region=(485490,531060,4283280,4330290), save="LC08_L1TP_20210525_02_cube.tiff")```
+```julia
+using RemoteS, GMT
+#cd(path-to-where-files-are-stored)
+tplt = "LC08_L1TP_204033_20210525_20210529_02_T1_B";	# Template name
+cube = cutcube(bands=[2,3,4,5,6,7,10], template=tplt, region=(485490,531060,4283280,4330290), save="LC08_L1TP_20210525_02_cube.tiff")```
+```
 
 This creates a 3D GeoTIFF file with the companion MTL file saved in it as Metadata. We can see the band info by running the ```reportbands``` function. That information is quite handy because we can, for example, just refer to the _red_ band and it will figure out which layer of the cube contains the Red band.
 
 
 ```julia
 using RemoteS, GMT
-reportbands("c:/v/LC08_L1TP_20210525_02_cube.tiff")
+reportbands("LC08_L1TP_20210525_02_cube.tiff")
 7-element Vector{String}:
  "Band 2 - Blue [0.45-0.51]"
  "Band 3 - Green [0.53-0.59]"
@@ -28,7 +31,7 @@ reportbands("c:/v/LC08_L1TP_20210525_02_cube.tiff")
 So to start our exploration the best is to generate a true color image. The ```truecolor``` function knows how to do that automatically including the histogram contrast stretch.
 
 ```julia
-Irgb = truecolor("c:/v/LC08_L1TP_20210525_02_cube.tiff");
+Irgb = truecolor("LC08_L1TP_20210525_02_cube.tiff");
 imshow(Irgb)
 ```
 
@@ -39,7 +42,7 @@ imshow(Irgb)
 And we can compute the brightness temperature in Celsius at the Top of Atmosphere (TOA) from Band 10.
 
 ```julia
-T = dn2temperature("c:/v/LC08_L1TP_20210525_02_cube.tiff", band=10);
+T = dn2temperature("LC08_L1TP_20210525_02_cube.tiff", band=10);
 imshow(T, dpi=150, colorbar=true)
 ```
 
@@ -50,7 +53,7 @@ imshow(T, dpi=150, colorbar=true)
 Or the Radiance TOA for the Blue band.
 
 ```julia
-Btoa = dn2radiance("c:/v/LC08_L1TP_20210525_02_cube.tiff", bandname="blue");
+Btoa = dn2radiance("LC08_L1TP_20210525_02_cube.tiff", bandname="blue");
 imshow(Btoa, dpi=150, color=:gray)
 ```
 
@@ -89,7 +92,7 @@ we can do it all at once with the ```dn2radiance``` applied to the cube and, lik
 with ```truecolor```
 
 ```julia
-cube_toa_rad = dn2radiance("c:/v/LC08_L1TP_20210525_02_cube.tiff");
+cube_toa_rad = dn2radiance("LC08_L1TP_20210525_02_cube.tiff");
 Irgb_toa = truecolor(cube_toa_rad);
 imshow(Irgb_toa)
 ```
