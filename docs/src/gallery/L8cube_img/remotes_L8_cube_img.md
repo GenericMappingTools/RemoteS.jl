@@ -3,9 +3,9 @@ Here we will show examples of the type of things we can do with Landsat 8 data s
 
 The data was downloaded from [EarthExplorer](https://earthexplorer.usgs.gov) and comprises the scene with Product ID ```LC08_L1TP_204033_20210525_20210529_02_T1```.
 
-The _cube_ was made with this instructions (but they would only work if you had the scene files in your computer and **must** adapt for your own path). Note that in ```tplt``` bellow, the  ```C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/``` is the file path and the ```LC08_L1TP_204033_20210525_20210529_02_T1_B``` is the part of the file names that is common to all band names.
+The _cube_ was made with this instructions (but they would only work if you had the scene files in your computer and **must** adapt for your own path). Note that in ```tplt``` bellow, the  ```"C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/"``` is the file path and the ```LC08_L1TP_204033_20210525_20210529_02_T1_B``` is the part of the file names that is common to all band names.
 
-```tplt = C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/LC08_L1TP_204033_20210525_20210529_02_T1_B;```
+```tplt = "C:/v/LC08_L1TP_204033_20210525_20210529_02_T1/LC08_L1TP_204033_20210525_20210529_02_T1_B";```
 
 ```cube = cutcube(bands=[2,3,4,5,6,7,10], template=tplt, region=(485490,531060,4283280,4330290), save="LC08_L1TP_20210525_02_cube.tiff")```
 
