@@ -123,16 +123,16 @@ function truecolor(bandR::T, bandG::T, bandB::T) where {T<:Union{GMTgrid{<:Abstr
 	@assert size(bandR) == size(bandG) == size(bandB)
 	n1 = length(bandR);		n2 = 2 * n1;	n3 = 3 * n1
 	img = Array{UInt8}(undef, size(bandR,1), size(bandR,2), 3)
-	mima = isa(bandR, GMTgrid) ? bandR.range[5:6] : GMT.entrema_nan(bndR)
+	mima = isa(bandR, GMTgrid) ? bandR.range[5:6] : GMT.entrema_nan(bandR)
 	mima == [0.0,1.0] ? (for k = 1:n1 img[k] = round(UInt8, bandR[k] * 255) end) :
 		(d = 255.0 / (mima[2] - mima[1]); for k = 1:n1 img[k] = round(UInt8, (bandR[k] - mima[1]) * d) end)
 
-	mima = isa(bandG, GMTgrid) ? bandG.range[5:6] : GMT.entrema_nan(bndG)
+	mima = isa(bandG, GMTgrid) ? bandG.range[5:6] : GMT.entrema_nan(bandG)
 	n = 0
 	mima == [0.0,1.0] ? (for k = n1+1:n2 img[k] = round(UInt8, bandG[n+=1] * 255) end) :
 		(d = 255.0 / (mima[2] - mima[1]); for k = n1+1:n2 img[k] = round(UInt8, (bandG[n+=1] - mima[1]) * d) end)
 
-	mima = isa(bandB, GMTgrid) ? bandB.range[5:6] : GMT.entrema_nan(bndB)
+	mima = isa(bandB, GMTgrid) ? bandB.range[5:6] : GMT.entrema_nan(bandB)
 	n = 0
 	mima == [0.0,1.0] ? (for k = n2+1:n3 img[k] = round(UInt8, bandB[n+=1] * 255) end) :
 		(d = 255.0 / (mima[2] - mima[1]); for k = n2+1:n3 img[k] = round(UInt8, (bandB[n+=1] - mima[1]) * d) end)
@@ -364,8 +364,14 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 		names = Vector{String}(undef, length(bands))
 		if isa(bands, Vector{Int})
 			[names[k] = @sprintf("%s%d%s", template, bands[k], extension) for k = 1:length(bands)]
-			!isfile(names[1]) &&	# Landsat uses "B2.TIF" and Sentinel "B02.jp2", try again.
-				[names[k] = @sprintf("%s%.02d%s", template, bands[k], extension) for k = 1:length(bands)]
+			if (!isfile(names[1]))		# Landsat uses "B2.TIF" and Sentinel "B02.jp2", try again.
+				n_name = @sprintf("%s%.02d%s", template, bands[1], extension)
+				if (!isfile(n_name))
+					error("Neither file name $(names[1]) nor $(n_name) do exist in $(pwd()) Check the file extensions and use the 'extension' option if needed.")
+				else
+					[names[k] = @sprintf("%s%.02d%s", template, bands[k], extension) for k = 1:length(bands)]
+				end
+			end 
 		else
 			[names[k] = @sprintf("%s%s", template, bands[k]) for k = 1:length(bands)]
 		end
@@ -379,10 +385,11 @@ function cutcube(; names::Vector{String}=String[], bands::AbstractVector=Int[], 
 				if (isfile(name))
 					names[k] = name
 				else
-					error("File name $name does not exist. Must stop here.")
+					name = replace(name, "_ST_B" => "_SR_B")	# Revert name change before reporting
+					error("File name $name does not exist in $(pwd()) Must stop here.")
 				end
 			else
-				error("File name $name does not exist. Must stop here.")
+				error("File name $name does not exist in $(pwd()) Must stop here.")
 			end
 		end
 		k += 1
@@ -441,7 +448,7 @@ function assign_description(names::Vector{String}, description::Vector{String}, 
 		end
 	else
 		if (isempty(description))
-			[desc[k] = splitext(splitdir(names[k])[2])[1] for k = 1:length(names)]
+			for k = 1:length(names)  desc[k] = splitext(splitdir(names[k])[2])[1]  end
 		else
 			desc = description
 		end
