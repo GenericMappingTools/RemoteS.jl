@@ -119,7 +119,7 @@ end
 
 # ----------------------------------------------------------------------------------------------------------
 # This method fall into the description of the general 'truecolor(bndR, bndG, bndB)'
-function truecolor(bandR::T, bandG::T, bandB::T) where {T<:Union{GMTgrid{<:AbstractFloat, 2},Matrix{<:AbstractFloat}}}
+function truecolor(bandR::T, bandG::T, bandB::T) where {T<:Union{GMT.GMTgrid{<:AbstractFloat, 2},Matrix{<:AbstractFloat}}}
 	@assert size(bandR) == size(bandG) == size(bandB)
 	n1 = length(bandR);		n2 = 2 * n1;	n3 = 3 * n1
 	img = Array{UInt8}(undef, size(bandR,1), size(bandR,2), 3)
@@ -140,39 +140,42 @@ function truecolor(bandR::T, bandG::T, bandB::T) where {T<:Union{GMTgrid{<:Abstr
 	return isa(bandR, GMTgrid) ? mat2img(img, bandR) : mat2img(img)
 end
 
-truecolor(cube::GMT.GMTimage{UInt16, 3}, layers::Vector{Int}) = truecolor(cube, layers=layers)
-function truecolor(cube::GMT.GMTimage{UInt16, 3}; layers::Vector{Int}=Int[])
+truecolor(cube::GMT.GMTimage{UInt16, 3}, layers::Vector{Int}; stretch=true) = truecolor(cube, layers=layers, stretch=stretch)
+function truecolor(cube::GMT.GMTimage{UInt16, 3}; layers::Vector{Int}=Int[], stretch=true)
 	(length(layers) != 3) && error("For an RGB composition 'bands' must be a 3 elements array and not $(length(layers))")
 	(cube.layout[3] != 'B') && error("For an RGB composition the image object must be Band interleaved and not $(cube.layout)")
 	img = Array{UInt8, 3}(undef, size(cube,1), size(cube,2), 3)
 	layers = find_layers(cube, layers, 3)
-	_ = mat2img(@view(cube[:,:,layers[1]]), stretch=true, img8=view(img,:,:,1), scale_only=1)
-	_ = mat2img(@view(cube[:,:,layers[2]]), stretch=true, img8=view(img,:,:,2), scale_only=1)
-	_ = mat2img(@view(cube[:,:,layers[3]]), stretch=true, img8=view(img,:,:,3), scale_only=1)
+	stch = (stretch == 1) ? true : stretch		# This bloody type unstable and does not test stupid inputs
+	_ = mat2img(@view(cube[:,:,layers[1]]), stretch=stch, img8=view(img,:,:,1), scale_only=1)
+	_ = mat2img(@view(cube[:,:,layers[2]]), stretch=stch, img8=view(img,:,:,2), scale_only=1)
+	_ = mat2img(@view(cube[:,:,layers[3]]), stretch=stch, img8=view(img,:,:,3), scale_only=1)
 	Io = mat2img(img, cube);	Io.layout = "TRBa"
 	Io
 end
 
-truecolor(cube::GMT.GMTgrid{Float32, 3}, layers::Vector{Int}) = truecolor(cube, layers=layers)
+truecolor(cube::GMT.GMTgrid{Float32, 3}, layers::Vector{Int}; stretch=true) = truecolor(cube, layers=layers, stretch=stretch)
 function truecolor(cube::GMT.GMTgrid{Float32, 3}; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[],
-	               bandnames::Vector{String}=String[], type::DataType=UInt8)
+	               bandnames::Vector{String}=String[], stretch=true, type::DataType=UInt8)
 	(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bandnames = ["red", "green", "blue"])
 	isempty(layers) && (layers = find_layers(cube, bandnames, bands))
 	(length(layers) != 3) && error("For an RGB composition 'bands' must be a 3 elements array and not $(length(layers))")
+	stch = (stretch == 1) ? true : stretch		# This bloody type unstable and does not test stupid inputs
 	img = Array{type, 3}(undef, size(cube,1), size(cube,2), 3)
-	img[:,:,1] = rescale(@view(cube[:,:,layers[1]]), stretch=true, type=type)
-	img[:,:,2] = rescale(@view(cube[:,:,layers[2]]), stretch=true, type=type)
-	img[:,:,3] = rescale(@view(cube[:,:,layers[3]]), stretch=true, type=type)
+	img[:,:,1] = rescale(@view(cube[:,:,layers[1]]), stretch=stch, type=type)
+	img[:,:,2] = rescale(@view(cube[:,:,layers[2]]), stretch=stch, type=type)
+	img[:,:,3] = rescale(@view(cube[:,:,layers[3]]), stretch=stch, type=type)
 	Io = mat2img(img, cube);	Io.layout = "TRBa"
 	Io
 end
 
-function truecolor(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], raw::Bool=false)
+function truecolor(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[],
+                   raw::Bool=false, stretch=true)
 	# The `raw` option returns a GMTimage{UInt16, 3} and does not convert to UInt8 with auto-stretch (default)
 	(isempty(bands) && isempty(bandnames) && isempty(layers)) && (bandnames = ["red", "green", "blue"])
 	rgb = subcube(cube, bands=bands, layers=layers, bandnames=bandnames)
 	(raw) && return rgb
-	return (eltype(rgb) <: AbstractFloat) ? truecolor(rgb, layers=[1,2,3]) : mat2img(rgb, stretch=:auto)
+	return (eltype(rgb) <: AbstractFloat) ? truecolor(rgb, layers=[1,2,3], stretch=stretch) : mat2img(rgb, stretch=stretch)
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -850,6 +853,9 @@ Returns the trained model and the class names.
 """
 function train_raster(cube::GItype, train::Union{Vector{<:GMTdataset}, String}; np::Int=0, density=0.1, max_depth=3)
 	samples = isa(train, String) ? gmtread(train) : train
+	get(samples[1].attrib, "class", "") == "" && error("The datasets used for training MUST have an attribute called 'class'.")
+	(get(samples[1].attrib, "id", "") == "") && add_class_id!(samples)	# If no 'id' attribute, create one from 'class'
+	
 	pts = randinpolygon(samples, np=np, density=density)
 	LCsamp = grdinterpolate(cube, S=pts, nocoords=true)
 	features = GMT.ds2ds(LCsamp)
@@ -859,6 +865,22 @@ function train_raster(cube::GItype, train::Union{Vector{<:GMTdataset}, String}; 
 	DecisionTree.fit!(model, features, labels)
 	classes = join(unique(GMT.make_attrtbl(samples, false)[1][:,1]), ",")
 	return model, classes
+end
+
+function add_class_id!(D::Vector{<:GMTdataset})
+	seen = Dict{String,Int}()
+	n = 0
+  	for d in D
+		v = d.attrib["class"]
+		cls = v isa Vector ? first(v) : v
+		haskey(seen, cls) || (n += 1; seen[cls] = n)
+	end
+	for d in D
+		v = d.attrib["class"]
+		cls = v isa Vector ? first(v) : v
+		d.attrib["id"] = string(seen[cls])
+	end
+	return nothing
 end
 
 # ----------------------------------------------------------------------------------------------------------
