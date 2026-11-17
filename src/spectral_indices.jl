@@ -187,7 +187,7 @@ MNDWI = (green-swir2) / (green+swir2)
 
 $(generic_docs)
 """
-mndwi(green, swir2; kw...) = sp_indices(swir2, green; index="MNDWI", kw...)
+mndwi(green, swir2; kw...) = sp_indices(green, swir2; index="MNDWI", kw...)
 mndwi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "MNDWI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "swir2"], kw...)
 mndwi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
@@ -259,7 +259,7 @@ Normalised Burn Ratio Index. Garcia 1991
 
 NBRI = (nir - swir2) / (nir + swir2)
 """
-nbri(nir, swir2; kw...) = sp_indices(swir2, nir; index="NBRI", kw...)
+nbri(nir, swir2; kw...) = sp_indices(nir, swir2; index="NBRI", kw...)
 nbri(cube::String;
      bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "NBRI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
@@ -301,7 +301,7 @@ NDWI = (green - nir)/(green + nir)
 
 $(generic_docs)
 """
-ndwi(green, nir; kw...) = sp_indices(nir, green; index="NDWI", kw...)
+ndwi(green, nir; kw...) = sp_indices(green, nir; index="NDWI", kw...)
 ndwi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "NDWI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["green", "nir"], kw...)
 ndwi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
@@ -322,12 +322,33 @@ NDWI2 = (nir - swir2)/(nir + swir2)
 
 $(generic_docs)
 """
-ndwi2(nir, swir2; kw...) = sp_indices(swir2, nir; index="NDWI2", kw...)
+ndwi2(nir, swir2; kw...) = sp_indices(nir, swir2; index="NDWI2", kw...)
 ndwi2(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "NDWI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
 ndwi2(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
      bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
 	helper_si_method(cube, "NDWI2"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir2"], kw...)
+
+# ----------------------------------------------------------------------------------------------------------
+"""
+    NDMI = ndmi(nir, swir1; kw...)
+or
+
+    NDMI = ndmi(cube::Union{String, GMTgrid}; [bands=Int[], bandnames=String[], layers=Int[]], kwargs...)
+
+Normalized difference moisture index. Gao 1996 (NDWI with the 1.6 μm SWIR band). Leaf water content,
+crop water stress. Landsat 8/9 bands 5 and 6; Sentinel-2 bands 8A and 11.
+
+NDMI = (nir - swir1)/(nir + swir1)
+
+$(generic_docs)
+"""
+ndmi(nir, swir1; kw...) = sp_indices(nir, swir1; index="NDMI", kw...)
+ndmi(cube::String; bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NDMI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir1"], kw...)
+ndmi(cube::Union{GMT.GMTimage{UInt16, 3}, AbstractArray{<:AbstractFloat, 3}};
+     bands::Vector{Int}=Int[], layers::Vector{Int}=Int[], bandnames::Vector{String}=String[], kw...) =
+	helper_si_method(cube, "NDMI"; bands=bands, layers=layers, bandnames=bandnames, defbandnames=["nir", "swir1"], kw...)
 
 # ----------------------------------------------------------------------------------------------------------
 """
@@ -683,7 +704,7 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 			end
 			helper_si!(img, threshold, classes)		# Threshold or Classes if one of them is != nothing
 		end
-	elseif (index == "GNDVI" || index == "MNDWI" || index == "NBRI" || index == "NDVI" || index == "NDWI" || index == "NDWI2" || index == "NDREI1" || index == "NDREI2")
+	elseif (index == "GNDVI" || index == "MNDWI" || index == "NBRI" || index == "NDVI" || index == "NDWI" || index == "NDWI2" || index == "NDMI" || index == "NDREI1" || index == "NDREI2")
 		# green Normalized diff vegetation index: more sensitive to cholorphyll than ndvi. Gitelson, A., and M. Merzlyak. 
 		# GNDVI		=> (nir - green) / (nir + green)
 		# Modified Normalised Difference Water Index. Xu2006;  MNDWI	=> (green-swir2) / (green+swir2)
@@ -691,11 +712,14 @@ function sp_indices(bnd1, bnd2, bnd3=nothing; index::String="", kwargs...)
 		# Normalized difference water index. McFeeters 1996. NDWI => (green - nir)/(green + nir)
 		# NDVI Normalised Difference Vegetation Index. Rouse 1974. (nir - red) / (nir + red)
 		# NDBI, LSWI. Normalized difference water index. Gao 1996, Chen 2005; NDWI2 => (nir - swir2)/(nir + swir2)
+		# Normalized difference moisture index. Gao 1996; NDMI => (nir - swir1)/(nir + swir1)
 		# Normalized difference red edge index. Gitelson and Merzlyak 1994; (redEdge2 - redEdge1)/(redEdge2 + redEdge1)
 		# Normalized difference red edge index 2. Barnes et al 2000; (redEdge3 - redEdge1)/(redEdge3 + redEdge1)
 
-		# Need to swap bnd1 and bnd2 for indices that are defined as (shorter_cdo - longer_cdo)
-		_b1, _b2 = (index == "MNDWI" || index == "NBRI" || index == "NDWI" || index == "NDWI2" || index == "NDWI2") ? (bnd2, bnd1) : (bnd1, bnd2)
+		# Need to swap bnd1 and bnd2 for indices that are defined as (shorter_cdo - longer_cdo). The bands
+		# always arrive in the order of the index's own signature (= its defbandnames), for the band-matrix
+		# methods and the cube methods alike, so this swap is the ONLY place the order is changed.
+		_b1, _b2 = (index == "MNDWI" || index == "NBRI" || index == "NDWI" || index == "NDWI2" || index == "NDMI") ? (bnd2, bnd1) : (bnd1, bnd2)
 		if (ismask)
 			@inbounds Threads.@threads for k = 1:mn
 				t1 = _b1[k]*i_tmax;	t2 = _b2[k]*i_tmax
