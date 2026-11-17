@@ -11,6 +11,8 @@ struct MTL_short
 	sun_dist::Float64
 	K1::Float64
 	K2::Float64
+	temp_mul::Float64		# Level-2 ST_B10: T(K) = DN * temp_mul + temp_add. 0 = not a Level-2 thermal band
+	temp_add::Float64
 end
 
 const KW = Dict{Symbol,Any}
@@ -483,6 +485,9 @@ function read_mtl(fname::String, mtl::String=""; get_full::Bool=false)
 	(ind === nothing) && return nothing		# Only happens when get_full = true and name is no Landsat
 	if (mtl == "")
 		mtl = joinpath(pato, _fname[1:ind[1]] * "MTL.txt")
+		# A Level-2 band (…_T1_SR_B5.TIF, …_T1_ST_B10.TIF): its MTL is …_T1_MTL.txt, without the SR/ST.
+		(!isfile(mtl) && occursin(r"_(SR|ST)_B\d+"i, _fname)) &&
+			(mtl = joinpath(pato, replace(_fname, r"_(SR|ST)_B\d+.*$"i => "_MTL.txt")))
 		if (!isfile(mtl))
 			lst = filter(x -> endswith(x, "MTL.txt"), readdir((pato == "") ? "." : pato))
 			if (length(lst) == 1 && startswith(lst[1], _fname[1:16]))
@@ -520,12 +525,23 @@ function parse_mtl(mtl::Vector{<:AbstractString}, band::Int)
 	sun_dist = get_par("EARTH_SUN")
 	K1 = (band >= 10) ? get_par("K1_CONSTANT_BAND_$(band)") : 0.0
 	K2 = (band >= 10) ? get_par("K2_CONSTANT_BAND_$(band)") : 0.0
-	MTL_short(band, rad_mul, rad_add, rad_max, reflect_mul, reflect_add, reflect_max, sun_azim, sun_elev, sun_dist, K1, K2)
+	# A Level-2 thermal band (…_ST_B10.TIF) is NOT Level-1 DNs: it is surface temperature already, stored
+	# as T(K) = DN * TEMPERATURE_MULT_BAND_ST_B10 + TEMPERATURE_ADD_BAND_ST_B10 (LEVEL2_SURFACE_TEMPERATURE_
+	# PARAMETERS). Taking those DNs through the Level-1 radiance + K1/K2 inversion gave ~35-45 C too hot.
+	temp_mul, temp_add = 0.0, 0.0
+	if (band >= 10 && any(l -> occursin("TEMPERATURE_MULT_BAND_ST_B$(band)", l), mtl))
+		temp_mul = get_par("TEMPERATURE_MULT_BAND_ST_B$(band)")
+		temp_add = get_par("TEMPERATURE_ADD_BAND_ST_B$(band)")
+	end
+	MTL_short(band, rad_mul, rad_add, rad_max, reflect_mul, reflect_add, reflect_max, sun_azim, sun_elev, sun_dist, K1, K2, temp_mul, temp_add)
 end
 
 # ----------------------------------------------------------------------------------------------------------
 function helper1_sats(fname::String, band_layer::Int)
-	I::GMT.GMTimage{UInt16, 2} = (band_layer == 0) ? gmtread(fname) : gmtread(fname, layer=band_layer, layout="TRB")
+	# "TRB" for a single band file too, as for a cube layer: the plain reader's image label does not
+	# describe its memory, and the grid built on it (`mat2grid(o, I)`) came out with another geometry
+	# description than a grid read of the same file (pixel-registered edges vs gridline nodes).
+	I::GMT.GMTimage{UInt16, 2} = (band_layer == 0) ? gmtread(fname, layout="TRB") : gmtread(fname, layer=band_layer, layout="TRB")
 	indNaN = isnodata(I)
 	o = Matrix{Float32}(undef, size(I))
 	return I, indNaN, o
@@ -618,15 +634,56 @@ T = dn2temperature(cube, band=10)
 ```
 """
 function dn2temperature(fname::String; band::Int=0, mtl::String="", save::String="")
+	_is_trad(fname) && return _trad_out(_trad2(fname, mtl, true), save)
 	band_layer, pars, = parse_lsat8_file(fname, band=band, mtl=mtl)
 	(pars.band < 10) && throw(ArgumentError("Brightness temperature is only for bands 10 or 11. Not this one: $(pars.band)"))
 	I, indNaN, o = helper1_sats(fname, band_layer)
-	@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
-		o[k] = indNaN[k] ? NaN32 : pars.K2 / (log(pars.K1 / (I.image[k] * pars.rad_mul + pars.rad_add) + 1.0)) - 273.15
+	if (pars.temp_mul != 0.0)		# Level-2 ST band: the DN IS the temperature, linearly scaled
+		tm, ta = pars.temp_mul, pars.temp_add - 273.15
+		@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
+			o[k] = indNaN[k] ? NaN32 : I.image[k] * tm + ta
+		end
+	else
+		@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
+			o[k] = indNaN[k] ? NaN32 : pars.K2 / (log(pars.K1 / (I.image[k] * pars.rad_mul + pars.rad_add) + 1.0)) - 273.15
+		end
 	end
 	G = mat2grid(o, I)
 	(save != "") && gdaltranslate(G, dest=save)
 	return (save != "") ? nothing : G
+end
+
+# ----------------------------------------------------------------------------------------------------------
+# Landsat Collection 2 Level-2 `…_ST_TRAD.TIF`: band 10's thermal radiance at the sensor (the product's
+# thermal band set; Landsat 9 L2 ships no B11). INT16, W/(m² sr µm) = DN * 0.001, fill -9999. The scale is
+# not in the MTL nor in the file: it is the USGS Landsat 8-9 Collection 2 Level-2 Science Product Guide's.
+# Temperature is the brightness temperature of band 10, T = K2 / ln(K1/L + 1), K1/K2 of BAND_10 from the MTL.
+const TRAD_SCALE = 0.001
+_is_trad(fname::String)::Bool = occursin(r"_ST_TRAD\.TIF$"i, basename(fname))
+
+function _trad2(fname::String, mtl::String, temperature::Bool)::GMTgrid
+	if (mtl == "")
+		pato, _fname = splitdir(fname)
+		mtl = joinpath(pato, replace(_fname, r"_ST_TRAD.*$"i => "_MTL.txt"))
+	end
+	isfile(mtl) || error("The MTL file of $(basename(fname)) was not found. Pass it with `mtl=`.")
+	pars = parse_mtl(readlines(mtl), 10)
+	G = gmtread(fname, layout="TRB")::GMTgrid
+	z = G.z
+	K1, K2 = pars.K1, pars.K2
+	@inbounds Threads.@threads for k = 1:length(z)
+		v = z[k]
+		z[k] = (isnan(v) || v == -9999) ? NaN32 :
+		       temperature ? K2 / log(K1 / (v * TRAD_SCALE) + 1.0) - 273.15 : v * TRAD_SCALE
+	end
+	G.nodata = NaN
+	GMT.setgrdminmax!(G)
+	return G
+end
+
+function _trad_out(G::GMTgrid, save::String)
+	(save != "") && (gdaltranslate(G, dest=save); return nothing)
+	return G
 end
 
 # ----------------------------------------------------------------------------------------------------------
@@ -657,6 +714,7 @@ R = dn2radiance("LC08_L1TP_204033_20210525_20210529_02_T1_B2.TIF")
 ```
 """
 function dn2radiance(fname::String; band::Int=0, bandname::String="", bandnames::String="", mtl::String="", save::String="")
+	_is_trad(fname) && return _trad_out(_trad2(fname, mtl, false), save)
 	dn2aux(fname, "radiance"; band=band, bandname=bandname, bandnames=bandnames, mtl=mtl, save=save)
 end
 
@@ -683,7 +741,14 @@ function dn2aux(fname::String, fun::String; band::Int=0, bandname::String="", ba
 	function inn_helper_rad(fname, band, bandname, bandnames, mtl)
 		band_layer, pars = helper_dns(fname, band, bandname, bandnames, mtl)
 		I, indNaN, o = helper1_sats(fname, band_layer)
-		helper_dns_op(I, pars.rad_mul, pars.rad_add, indNaN, o)
+		(pars.temp_mul == 0.0) && return helper_dns_op(I, pars.rad_mul, pars.rad_add, indNaN, o)
+		# Level-2 ST band: its DNs are temperature, not L1 counts. T(K) = DN*temp_mul + temp_add, then the
+		# inverse of the K1/K2 relation dn2temperature uses on Level-1, L = K1 / (exp(K2/T) - 1).
+		K1, K2, tm, ta = pars.K1, pars.K2, pars.temp_mul, pars.temp_add
+		@inbounds Threads.@threads for k = 1:size(I,1)*size(I,2)
+			o[k] = indNaN[k] ? NaN32 : K1 / (exp(K2 / (I.image[k] * tm + ta)) - 1.0)
+		end
+		mat2grid(o, I)
 	end
 	function inn_helper_ref(fname, band, bandname, bandnames, mtl)
 		band_layer, pars = helper_dns(fname, band, bandname, bandnames, mtl)

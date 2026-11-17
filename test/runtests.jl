@@ -21,7 +21,7 @@ truecolor(mat2img(rand(UInt16, 16, 16), noconv=1), mat2img(rand(UInt16, 16, 16),
 #sat_tracks(position=true, tle=["1 27424U 02022A   21245.83760660  .00000135  00000-0  39999-4 0  9997"; "2 27424  98.2123 186.0654 0002229  67.6025 313.3829 14.57107527 28342"]);
 
 @test_throws ErrorException("Bad input type Symbol. Must be a DateTime, a String or a Tuple(Int)") getitDTime(:val)
-@test get_sat_name(Dict(:sat => "TERRA")) == "TERRA"
+@test get_sat_name(Dict{Symbol,Any}(:sat => "TERRA")) == "TERRA"
 @test get_MODIS_scene_name(datetime2julian(DateTime("2020-09-20")), "A") == "AQUA_MODIS.20200920T000001.L2.SST.NRT.nc"
 @test get_MODIS_scene_name(datetime2julian(DateTime("2020-09-20")), "A", false) == "A2020264000000.L2_LAC_OC.nc"
 

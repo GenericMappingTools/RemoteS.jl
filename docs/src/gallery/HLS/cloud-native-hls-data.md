@@ -2,7 +2,9 @@
 
 Extracting an EVI Time Series from Harmonized Landsat-8 Sentinel-2 (HLS) data in the Cloud using
 CMR's SpatioTemporal Asset Catalog (CMR-STAC). This tutorial demonstrates how to work with the
-HLS Landsat 8 (HLSL30.015) and Sentinel-2 (HLSS30.015) data products.
+HLS Landsat 8/9 (HLSL30) and Sentinel-2 (HLSS30) v2.0 data products.
+
+#### NOTE: Since September 2024 the CMR-STAC collection IDs are `HLSL30_2.0` and `HLSS30_2.0` (the old `HLSL30.v1.5`/`HLSS30.v1.5` collections are retired and the `.v2.0` form is gone). The code below uses the current IDs; the printed outputs are from the tutorial's original 2021 run and still show the old names.
 
 #### NOTE: This tutorial is adapted from [Getting Started with Cloud-Native HLS Data in Python](https://lpdaac.usgs.gov/resources/e-learning/getting-started-cloud-native-hls-data-python/)
 
@@ -106,7 +108,7 @@ collections[2]
       "description"  => "The Harmonized Landsat and Sentinel-2 (HLS) project provid…
       "extent"       => Dict{String, Any}("spatial"=>Dict{String, Any}("bbox"=>Any[…
 
-### In CMR, ```id``` is used to query by a specific product, so be sure to save the ID for the HLS S30 and L30 V1.5 products below:
+### In CMR, ```id``` is used to query by a specific product, so be sure to save the ID for the HLS S30 and L30 v2.0 products below:
 
 ```julia
 # Search available collections for HLS and print them out
@@ -126,13 +128,13 @@ hls_collections = [c for c in collections if contains(c["title"], "HLS")];
      nothing
      nothing
 
-> Note that the ```id``` shortname is in the format: productshortname.vVVV (where VVV = product version)
+> Note that the ```id``` shortname is in the format: productshortname_V.V (where V.V = product version, e.g. HLSS30_2.0)
 
 ### Explore the attributes contained in the HLSS30 Collection.
 
 ```julia
 # Grab HLSS30 collection
-s30 = [h for h in hls_collections if h["id"] == "HLSS30.v1.5"][1];
+s30 = [h for h in hls_collections if h["id"] == "HLSS30_2.0"][1];
 
 # Check out the extent of this collection
 for k in keys(s30["extent"]) println(k, " : ", s30["extent"][k]) end
@@ -415,11 +417,11 @@ params
 
 ### As of October 4, 2021, the HLS Operational Land Imager Surface Reflectance and TOA Brightness (HLSL30) product has been provisionally released, and this tutorial has been updated to show how to combine observations from both products into a time series.
 
-Next, add the ```shortname``` for the HLSS30 v1.5 product (HLSS30.v1.5) to the params dictionary, and query
+Next, add the ```shortname``` for the HLSS30 v2.0 product (HLSS30_2.0) to the params dictionary, and query
 the CMR-STAC LPCLOUD search endpoint for just HLSS30 items.
 
 ```julia
-s30_id = "HLSS30.v1.5"
+s30_id = "HLSS30_2.0"
 params["collections"] = [s30_id];
 ```
 
@@ -433,10 +435,10 @@ length(s30_items)
 
     61
 
-Append the HLSL30 V1.5 Product shortname (ID) to the list under the ```collections``` parameter.
+Append the HLSL30 v2.0 Product shortname (ID) to the list under the ```collections``` parameter.
 
 ```julia
-l30_id = "HLSL30.v1.5";
+l30_id = "HLSL30_2.0";
 append!(params["collections"], [l30_id])
 params
 ```
@@ -500,8 +502,8 @@ h = hls_items[1]
 ```julia
 evi_band_links = []
 
-# Define which HLS product is being accessed
-if (split(h["assets"]["browse"]["href"], '/')[5] == "HLSS30.015")
+# Define which HLS product is being accessed (the item ID starts with HLS.S30 or HLS.L30)
+if startswith(h["id"], "HLS.S30")
     evi_bands = ["B8A", "B04", "B02", "Fmask"] # NIR RED BLUE Quality for S30
 else
     evi_bands = ["B05", "B04", "B02", "Fmask"] # NIR RED BLUE Quality for L30
@@ -661,7 +663,7 @@ for (j, h) in enumerate(hls_items)
     try
         evi_band_links = []
         # Define which HLS product is being accessed
-        if (split(h["assets"]["browse"]["href"], '/')[5] == "HLSS30.015")
+        if startswith(h["id"], "HLS.S30")
             evi_bands = ["B8A", "B04", "B02", "Fmask"] # NIR RED BLUE Quality for S30
         else
             evi_bands = ["B05", "B04", "B02", "Fmask"] # NIR RED BLUE Quality for L30
@@ -728,7 +730,7 @@ eviFiles = [o for o in readdir() if endswith(o, "EVI.grd")];
 df = dateformat"yyyymmddTHHMMSS";
 time = Vector{TimeType}(undef, length(eviFiles));
 for (i, e) in enumerate(eviFiles)
-    t = split(split(e, ".v1.5")[1], ".")[end];
+    t = split(split(e, ".v2.0")[1], ".")[end];
     # Julia doesn't parse a date in yyyyjjjT... so must resort to brewed functions
     mon, day = monthday(doy2date(t[5:7], t[1:4]));
     time[i] = DateTime(@sprintf("%s%.02d%.02d%s", t[1:4], mon, day, t[8:end]), df);
